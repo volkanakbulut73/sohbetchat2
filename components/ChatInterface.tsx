@@ -146,7 +146,8 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     setInputText(newText);
     setTimeout(() => {
         inputRef.current?.focus();
-        inputRef.current?.setSelectionRange(start + tag.length, end + tag.length);
+        const newCursorPos = start + tag.length + (selectedText.length > 0 ? selectedText.length + actualEndTag.length : 0);
+        inputRef.current?.setSelectionRange(newCursorPos, newCursorPos);
     }, 10);
   };
 
@@ -157,8 +158,6 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     const before = text.substring(0, start);
     const after = text.substring(start);
     setInputText(before + emoji + after);
-    // Paneli açık tutmak isteyebiliriz, ama genelde bir emoji sonrası kapanması yaygındır.
-    // setShowEmojiPicker(false); 
     setTimeout(() => {
         inputRef.current?.focus();
         const newPos = start + emoji.length;
@@ -228,17 +227,38 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     }
   };
 
-  // Metni gerçek HTML formatına dönüştüren yardımcı fonksiyon
-  const renderFormattedText = (text: string) => {
-    let formatted = text;
-    // Kalın (**text**)
-    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
-    // İtalik (_text_)
-    formatted = formatted.replace(/_(.*?)_/g, '<i>$1</i>');
-    // Altı Çizili (<u>text</u>) - Zaten HTML formatında geldiği için ek işlem gerekebilir ama basit kalsın
-    // formatted = formatted.replace(/<u>(.*?)<\/u>/g, '<u>$1</u>'); 
+  /**
+   * Mesaj metnini zengin formatlı HTML'e güvenli şekilde dönüştürür.
+   * Bold (**), Italic (_) ve Underline (<u>) etiketlerini işler.
+   */
+  const renderMessageContent = (text: string) => {
+    if (!text) return null;
 
-    return <div dangerouslySetInnerHTML={{ __html: formatted }} />;
+    // 1. HTML karakterlerini kaçır (Security)
+    let safeHtml = text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+
+    // 2. Özel etiketleri geri yükle ve dönüştür
+    // Underline: <u>...</u> -> Giriş kutusunda literal girildiği için &lt;u&gt; olarak gelir
+    safeHtml = safeHtml.replace(/&lt;u&gt;(.*?)&lt;\/u&gt;/g, '<span style="text-decoration: underline;">$1</span>');
+    
+    // Bold: **text** -> <strong>text</strong>
+    safeHtml = safeHtml.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    // Italic: _text_ -> <em>text</em>
+    safeHtml = safeHtml.replace(/_(.*?)_/g, '<em>$1</em>');
+
+    // 3. Satır sonlarını <br/>'ye dönüştür
+    safeHtml = safeHtml.replace(/\n/g, '<br/>');
+
+    return (
+      <div 
+        className="prose prose-sm max-w-none prose-slate"
+        dangerouslySetInnerHTML={{ __html: safeHtml }} 
+      />
+    );
   };
 
   const UserListSidebar = () => (
@@ -316,8 +336,8 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                                      : 'bg-white text-slate-700 rounded-[18px] rounded-bl-[4px] border border-gray-100'}
                              `}>
                                 {msg.image && <img src={msg.image} className="max-w-full h-auto rounded-lg mb-2 border border-black/5 shadow-sm" />}
-                                <div className="whitespace-pre-wrap break-words">
-                                    {renderFormattedText(msg.text)}
+                                <div className="break-words">
+                                    {renderMessageContent(msg.text)}
                                 </div>
                              </div>
                              <div className="text-[8px] sm:text-[9px] text-gray-300 mt-1 px-1">
@@ -344,12 +364,12 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
          <div className="bg-white border-t border-gray-100 shrink-0 relative z-40">
              <div className="max-w-4xl mx-auto p-2 sm:p-4">
                  
-                 {/* Emoji Paneli - Görünürlük için en dışta ve yüksek z-index ile */}
+                 {/* Emoji Paneli */}
                  {showEmojiPicker && (
-                    <div className="absolute bottom-[calc(100%-10px)] left-4 md:left-8 mb-4 bg-white border border-gray-200 shadow-[0_10px_40px_rgba(0,0,0,0.15)] rounded-2xl p-4 z-[999] w-64 md:w-80">
-                        <div className="flex justify-between items-center mb-2 px-1">
-                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Emoji Seç</span>
-                            <button onClick={() => setShowEmojiPicker(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+                    <div className="absolute bottom-[calc(100%-10px)] left-4 md:left-8 mb-4 bg-white border border-gray-200 shadow-[0_15px_50px_rgba(0,0,0,0.2)] rounded-2xl p-4 z-[999] w-64 md:w-80">
+                        <div className="flex justify-between items-center mb-3 px-1 border-b border-gray-50 pb-2">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Duygular ve Simgeler</span>
+                            <button onClick={() => setShowEmojiPicker(false)} className="text-gray-300 hover:text-gray-600 transition-colors">✕</button>
                         </div>
                         <div className="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto scrollbar-hide">
                             {EMOJIS.map(e => (
@@ -357,7 +377,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                                     key={e} 
                                     onClick={() => insertEmoji(e)}
                                     onMouseDown={(e) => e.preventDefault()}
-                                    className="p-1.5 hover:bg-blue-50 rounded text-xl leading-none transition-all hover:scale-125"
+                                    className="p-1.5 hover:bg-blue-50 rounded-lg text-xl leading-none transition-all hover:scale-125 active:scale-95"
                                 >
                                     {e}
                                 </button>
@@ -368,41 +388,41 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
 
                  <div className="flex flex-col border border-gray-200 rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-300 transition-all bg-white shadow-sm">
                     
-                    {/* Integrated Toolbar */}
-                    <div className="flex items-center gap-1 px-3 py-2 border-b border-gray-50 bg-gray-50/30">
+                    {/* Rich Text Toolbar - Bütünleşik Görünüm */}
+                    <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-gray-50 bg-gray-50/40">
                         <button 
                             onMouseDown={(e) => { e.preventDefault(); insertFormat('**'); }}
-                            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-700 font-bold text-sm transition-all active:bg-gray-100"
+                            className="w-9 h-8 flex items-center justify-center rounded-md hover:bg-white hover:shadow-sm text-slate-700 font-bold text-sm transition-all active:scale-95"
                             title="Kalın"
                         >B</button>
                         <button 
                             onMouseDown={(e) => { e.preventDefault(); insertFormat('_'); }}
-                            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-700 italic text-sm transition-all active:bg-gray-100"
+                            className="w-9 h-8 flex items-center justify-center rounded-md hover:bg-white hover:shadow-sm text-slate-700 italic text-sm transition-all active:scale-95"
                             title="İtalik"
                         >I</button>
                         <button 
                             onMouseDown={(e) => { e.preventDefault(); insertFormat('<u>', '</u>'); }}
-                            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-700 underline text-sm transition-all active:bg-gray-100"
+                            className="w-9 h-8 flex items-center justify-center rounded-md hover:bg-white hover:shadow-sm text-slate-700 underline text-sm transition-all active:scale-95"
                             title="Altı Çizili"
                         >U</button>
-                        <div className="w-px h-4 bg-gray-200 mx-1"></div>
+                        <div className="w-px h-4 bg-gray-200 mx-2"></div>
                         <button 
                             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                             onMouseDown={(e) => e.preventDefault()}
-                            className={`w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-lg transition-all ${showEmojiPicker ? 'bg-white shadow-sm' : ''}`}
-                            title="Emoji Paneli"
+                            className={`w-9 h-8 flex items-center justify-center rounded-md hover:bg-white hover:shadow-sm text-lg transition-all active:scale-95 ${showEmojiPicker ? 'bg-white shadow-sm' : ''}`}
+                            title="Emoji Ekle"
                         >😊</button>
                     </div>
 
-                    {/* Actual Input Row */}
-                    <div className="px-3 sm:px-4 py-2 sm:py-3 flex items-center gap-2">
+                    {/* Metin Giriş Alanı */}
+                    <div className="px-3 sm:px-4 py-2.5 sm:py-3.5 flex items-center gap-3">
                         <form onSubmit={handleSendMessage} className="flex-1">
                             <input 
                                 ref={inputRef}
                                 value={inputText}
                                 onChange={e => setInputText(e.target.value)}
-                                className="w-full bg-transparent text-[14px] sm:text-[15px] text-slate-700 outline-none py-1.5"
-                                placeholder="Mesajınızı buraya yazın..."
+                                className="w-full bg-transparent text-[14px] sm:text-[16px] text-slate-700 outline-none py-1 placeholder:text-gray-300"
+                                placeholder="Buraya yazın..."
                                 autoComplete="off"
                             />
                         </form>
@@ -411,7 +431,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                             onClick={() => handleSendMessage()}
                             onMouseDown={(e) => e.preventDefault()} 
                             disabled={!inputText.trim() && !selectedImage}
-                            className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-blue-600 text-white flex items-center justify-center transition-all shadow-md active:scale-90 disabled:opacity-50 disabled:bg-gray-300 shrink-0"
+                            className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-blue-600 text-white flex items-center justify-center transition-all shadow-md active:scale-90 disabled:opacity-40 disabled:bg-gray-300 disabled:shadow-none shrink-0"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6" viewBox="0 0 20 20" fill="currentColor">
                                 <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
@@ -419,7 +439,9 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                         </button>
                     </div>
                  </div>
-                 
+                 <p className="text-[10px] text-gray-400 mt-2 px-1 italic">
+                    İpucu: **Kalın**, _İtalik_ ve <u>Altı Çizili</u> stil butonlarını kullanabilirsiniz.
+                 </p>
              </div>
          </div>
       </div>
