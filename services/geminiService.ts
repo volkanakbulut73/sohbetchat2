@@ -7,8 +7,6 @@ export const generateGroupResponse = async (
   topic: string,
   userName: string
 ): Promise<BotResponseItem[]> => {
-  // API Key kontrolü ve başlatma işlemini fonksiyon içine taşıdık
-  // Böylece uygulama açılışında key yoksa bile uygulama çökmez.
   const apiKey = process.env.API_KEY;
   if (!apiKey) {
     console.error("API Key process.env.API_KEY içinde bulunamadı. Botlar cevap veremeyecek.");
@@ -26,6 +24,8 @@ export const generateGroupResponse = async (
   const botDescriptions = bots
     .map((b) => `- ${b.name} (ID: ${b.id}): ${b.role}`)
     .join("\n");
+
+  const botNames = bots.map(b => b.name).join(", ");
 
   // Format recent history for context (last 15 messages for better context)
   const recentMessages = messages.slice(-15);
@@ -45,21 +45,23 @@ export const generateGroupResponse = async (
     
     Son mesajı yazan kullanıcı: ${userName}
     
-    GÖREV:
-    Sohbet geçmişini incele ve bu botlardan birinin veya birkaçının sohbete dahil olup olmaması gerektiğine karar ver.
+    ÖNEMLİ KURAL - SESSİZLİK MODU:
+    Botlar varsayılan olarak "PASİF GÖZLEMCİ" modundadır.
+    Botlar SADECE ve SADECE şu durumlarda cevap vermelidir:
+    1. Kullanıcının mesajında botun ismi (${botNames}) geçiyorsa (büyük/küçük harf duyarlılığı olmadan).
+    2. Kullanıcı genel bir soru sorduysa VE konu botun uzmanlık alanına (role) ÇOK SPESİFİK olarak giriyorsa (örneğin sadece "Gölge"nin cevap verebileceği bir eleştiri sorusu gibi).
     
-    KURALLAR:
-    1. Sadece gerekliyse cevap ver. Her mesaja cevap vermek zorunda değilsin.
-    2. Eğer cevap vereceksen, botun karakterine (${botDescriptions}) tam uygun bir ton kullan.
-    3. Cevaplar kısa, öz ve sohbet dilinde (samimi, Türkçe) olsun.
-    4. Kullanıcı bir resim gönderdiyse, resim hakkında yorum yap.
-    5. Botlar kendi aralarında da konuşabilir veya atışabilir.
+    Eğer yukarıdaki şartlar sağlanmıyorsa, boş bir dizi ([]) döndür. Asla gereksiz yere sohbete atlama ("Merhaba", "Nasılsın" gibi genel mesajlara cevap verme).
+    
+    Cevap Kuralları:
+    1. Cevaplar kısa, samimi ve sohbet balonu formatına uygun olsun.
+    2. Botun karakterine uygun konuş.
     
     ÇIKTI FORMATI:
-    Cevabı saf JSON formatında döndür. Markdown bloğu kullanma.
+    Sadece JSON döndür. Markdown yok.
     Örnek:
     [
-      { "botId": "bot_id", "message": "Merhaba!" }
+      { "botId": "bot_atlas", "message": "Buyur, beni mi çağırdın?" }
     ]
   `;
 
@@ -69,7 +71,7 @@ export const generateGroupResponse = async (
     
     // Add text part (includes history as context)
     contents.parts.push({
-        text: `Sohbet Geçmişi:\n${historyText}\n\nLütfen uygun bot cevaplarını (JSON array) üret.`
+        text: `Sohbet Geçmişi:\n${historyText}\n\nAnaliz et: Son mesajda ismi geçen bot var mı? Varsa JSON döndür, yoksa boş array döndür.`
     });
 
     // Check if the last message has an image
@@ -111,7 +113,6 @@ export const generateGroupResponse = async (
     });
 
     if (response.text) {
-        // Clean up markdown if model adds it despite instructions
         const cleanText = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
         const parsed = JSON.parse(cleanText) as BotResponseItem[];
         return parsed.filter(item => bots.some(b => b.id === item.botId));

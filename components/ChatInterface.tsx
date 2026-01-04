@@ -202,33 +202,33 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
 
   const allUsersInRoom = [currentUser, ...participants];
 
-  // User List Component (Fixed Right Sidebar)
+  // User List Component (Modern Right Sidebar)
   const UserList = () => (
-    <div className="bg-[#1f1f1f] h-full overflow-y-auto border-l border-gray-800 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
-        <div className="p-2 border-b border-gray-800 bg-[#151515] sticky top-0 z-10">
-            <h3 className="text-[#00ff9d] text-[10px] md:text-xs font-mono font-bold uppercase text-center tracking-widest truncate">
-                Kişiler ({allUsersInRoom.length})
+    <div className="bg-white h-full overflow-y-auto border-l border-gray-100 flex flex-col w-56">
+        <div className="p-4 border-b border-gray-100 bg-gray-50/50 sticky top-0 z-10 backdrop-blur-sm">
+            <h3 className="text-gray-400 text-[10px] font-bold uppercase tracking-widest text-center">
+                Üyeler ({allUsersInRoom.length})
             </h3>
         </div>
-        <ul className="p-1 md:p-2 space-y-1">
+        <ul className="flex-1 p-2 space-y-1">
             {allUsersInRoom.map(user => (
                 <li 
                     key={user.id}
                     onDoubleClick={() => onUserDoubleClick && onUserDoubleClick(user)}
                     className={`
-                        group flex flex-col md:flex-row items-center md:items-start gap-1 md:gap-2 p-1.5 rounded cursor-pointer transition-colors
-                        ${user.id === currentUser.id ? 'bg-[#00ff9d]/10' : 'hover:bg-white/5'}
+                        group flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all
+                        ${user.id === currentUser.id ? 'bg-indigo-50 border border-indigo-100' : 'hover:bg-gray-50 border border-transparent hover:border-gray-100'}
                     `}
                 >
                     <div className="relative shrink-0">
-                        <img src={user.avatar} className="w-6 h-6 md:w-8 md:h-8 rounded bg-gray-800 object-cover" />
-                        <div className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 md:w-2.5 md:h-2.5 rounded-full border-2 border-[#1f1f1f] ${user.isBot ? 'bg-blue-500' : 'bg-[#00ff9d]'}`}></div>
+                        <img src={user.avatar} className="w-9 h-9 rounded-full bg-gray-200 object-cover shadow-sm" />
+                        <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${user.isBot ? 'bg-blue-400' : 'bg-green-400'}`}></div>
                     </div>
-                    <div className="min-w-0 overflow-hidden text-center md:text-left w-full">
-                        <div className={`text-[10px] md:text-sm truncate font-mono ${user.isBot ? 'text-blue-400' : 'text-gray-300'}`}>
-                            {user.isBot && '@'}{user.name}
+                    <div className="min-w-0 overflow-hidden">
+                        <div className={`text-xs font-bold truncate ${user.isBot ? 'text-blue-600' : 'text-slate-700'}`}>
+                            {user.name}
                         </div>
-                        {user.isBot && <div className="hidden md:block text-[10px] text-gray-500 truncate">{user.role}</div>}
+                        {user.isBot && <div className="text-[10px] text-gray-400 truncate">{user.role}</div>}
                     </div>
                 </li>
             ))}
@@ -237,41 +237,63 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   );
 
   return (
-    <div className="flex h-full w-full bg-[#252525] overflow-hidden">
+    <div className="flex h-full w-full bg-slate-50 overflow-hidden">
       
       {/* Center: Chat Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 relative">
          
          {/* Info Bar (Inside Chat) */}
-         <div className="bg-[#151515] border-b border-gray-800 px-4 py-2 flex items-center justify-between text-xs text-gray-400 shrink-0">
-            <span className="truncate">{title} :: {topic}</span>
+         <div className="bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between shadow-sm z-20">
+            <div>
+                <h2 className="text-slate-800 font-bold text-sm flex items-center gap-2">
+                   {isPrivate ? '🔒 Özel Sohbet' : `# ${title}`}
+                </h2>
+                <p className="text-xs text-gray-500 truncate max-w-md">{topic}</p>
+            </div>
          </div>
 
-         {/* Messages */}
-         <div className="flex-1 overflow-y-auto p-2 md:p-4 space-y-3 relative bg-[#252525]">
-            {messages.map((msg) => {
+         {/* Messages Area - The actual chat bubbles */}
+         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 bg-slate-50 relative">
+            {messages.map((msg, index) => {
                 if (msg.senderId === 'system') return (
-                    <div key={msg.id} className="text-center py-2"><span className="text-xs text-gray-500 bg-black/20 px-2 py-1 rounded">{msg.text}</span></div>
+                    <div key={msg.id} className="flex justify-center my-4">
+                        <span className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full border border-gray-200 shadow-sm">{msg.text}</span>
+                    </div>
                 );
                 
                 const isMe = msg.isUser;
+                const showAvatar = index === 0 || messages[index - 1].senderId !== msg.senderId;
+
                 return (
-                    <div key={msg.id} className={`flex gap-2 md:gap-3 ${isMe ? 'flex-row-reverse' : ''} group`}>
-                        <div className="shrink-0 mt-0.5">
-                            <img src={msg.senderAvatar} className="w-6 h-6 md:w-8 md:h-8 rounded object-cover bg-gray-800" />
+                    <div key={msg.id} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'} group`}>
+                        {/* Avatar */}
+                        <div className={`shrink-0 flex flex-col justify-end ${!showAvatar ? 'invisible' : ''}`}>
+                            <img src={msg.senderAvatar} className="w-8 h-8 rounded-full shadow-sm bg-gray-200 object-cover" />
                         </div>
-                        <div className={`max-w-[85%] md:max-w-[70%]`}>
-                             <div className={`flex items-baseline gap-2 mb-0.5 ${isMe ? 'justify-end' : ''}`}>
-                                 <span className={`text-[10px] md:text-xs font-bold cursor-pointer hover:underline ${isMe ? 'text-[#00ff9d]' : 'text-blue-400'}`}>{msg.senderName}</span>
-                                 <span className="text-[9px] md:text-[10px] text-gray-600">{msg.timestamp.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
-                             </div>
-                             <div className={`p-2 md:p-2.5 rounded text-xs md:text-sm leading-relaxed whitespace-pre-wrap ${
-                                 isMe 
-                                 ? 'bg-[#00ff9d]/10 text-[#00ff9d] border border-[#00ff9d]/20' 
-                                 : 'bg-[#151515] text-gray-300 border border-gray-800'
-                             }`}>
-                                {msg.image && <img src={msg.image} className="max-w-full h-32 md:h-40 object-contain rounded mb-2 border border-black/50" />}
-                                {msg.text}
+
+                        {/* Message Bubble Container */}
+                        <div className={`flex flex-col max-w-[75%] ${isMe ? 'items-end' : 'items-start'}`}>
+                             {showAvatar && (
+                                 <span className={`text-[10px] font-bold mb-1 px-1 ${isMe ? 'text-indigo-600' : 'text-gray-500'}`}>
+                                     {msg.senderName}
+                                 </span>
+                             )}
+                             
+                             <div className={`
+                                 relative px-4 py-2.5 text-sm shadow-sm transition-all
+                                 ${isMe 
+                                     ? 'bg-indigo-600 text-white rounded-2xl rounded-tr-none hover:bg-indigo-700' 
+                                     : 'bg-white text-slate-700 rounded-2xl rounded-tl-none border border-gray-100 hover:border-gray-200'}
+                             `}>
+                                {msg.image && (
+                                    <img src={msg.image} className="max-w-full h-40 object-cover rounded-lg mb-2 bg-white" />
+                                )}
+                                <div className="whitespace-pre-wrap leading-relaxed">{msg.text}</div>
+                                
+                                {/* Timestamp inside bubble */}
+                                <div className={`text-[9px] mt-1 text-right opacity-70 ${isMe ? 'text-indigo-100' : 'text-gray-400'}`}>
+                                    {msg.timestamp.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
+                                </div>
                              </div>
                         </div>
                     </div>
@@ -279,56 +301,93 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
             })}
             
             {isTyping && (
-                <div className="flex items-center gap-2 text-gray-500 text-xs italic ml-12">
-                    <span>yazıyor...</span>
+                <div className="flex items-center gap-2 ml-12 mt-2">
+                    <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce delay-75"></div>
+                        <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce delay-150"></div>
+                    </div>
                 </div>
             )}
             <div ref={messagesEndRef} />
          </div>
 
          {/* Input Area */}
-         <div className="bg-[#1a1a1a] border-t border-gray-800 p-2 md:p-3 flex gap-2 shrink-0">
-             {isPrivate && (
-                 <>
-                    <input type="file" className="hidden" ref={fileInputRef} onChange={handleImageSelect} accept="image/*" />
-                    <button onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-400 hover:text-white bg-[#252525] rounded border border-gray-700">📷</button>
-                 </>
-             )}
-             <button 
-                onClick={() => setShowEmojiPicker(!showEmojiPicker)} 
-                className="p-2 text-gray-400 hover:text-white bg-[#252525] rounded border border-gray-700 relative"
-             >
-                😊
-                {showEmojiPicker && (
-                    <div className="absolute bottom-12 left-0 bg-[#1a1a1a] border border-gray-700 p-2 grid grid-cols-6 gap-1 w-64 rounded shadow-xl max-h-48 overflow-y-auto z-50">
-                        {EMOJIS.map(e => <button key={e} onClick={() => {insertAtCursor(e); setShowEmojiPicker(false)}} className="hover:bg-white/10 p-1 rounded">{e}</button>)}
-                    </div>
-                )}
-             </button>
-             
-             {selectedImage && (
-                 <div className="relative">
-                     <img src={selectedImage} className="h-10 w-10 object-cover rounded border border-[#00ff9d]" />
-                     <button onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center">×</button>
+         <div className="bg-white p-4 border-t border-gray-100 shadow-[0_-5px_20px_rgba(0,0,0,0.02)] z-30">
+             <div className="max-w-4xl mx-auto flex items-end gap-2">
+                 
+                 {/* Tools Button Group */}
+                 <div className="flex gap-1 pb-1">
+                     {isPrivate && (
+                         <>
+                            <input type="file" className="hidden" ref={fileInputRef} onChange={handleImageSelect} accept="image/*" />
+                            <button onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                            </button>
+                         </>
+                     )}
+                     <div className="relative">
+                         <button 
+                            onClick={() => setShowEmojiPicker(!showEmojiPicker)} 
+                            className="p-2 text-gray-400 hover:text-yellow-500 hover:bg-yellow-50 rounded-full transition-colors"
+                         >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                         </button>
+                         {showEmojiPicker && (
+                            <div className="absolute bottom-12 left-0 bg-white border border-gray-200 p-3 grid grid-cols-6 gap-2 w-72 rounded-2xl shadow-xl max-h-64 overflow-y-auto z-50">
+                                {EMOJIS.map(e => (
+                                    <button 
+                                        key={e} 
+                                        onClick={() => {insertAtCursor(e); setShowEmojiPicker(false)}} 
+                                        className="text-xl hover:bg-gray-100 p-2 rounded-lg transition-colors"
+                                    >
+                                        {e}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                     </div>
                  </div>
-             )}
+                 
+                 {/* Input Field */}
+                 <div className="flex-1 bg-gray-100 rounded-[1.5rem] px-4 py-2 flex items-center gap-2 border border-transparent focus-within:border-indigo-300 focus-within:bg-white focus-within:shadow-md transition-all">
+                     {selectedImage && (
+                         <div className="relative group">
+                             <img src={selectedImage} className="h-10 w-10 object-cover rounded-lg border border-indigo-200" />
+                             <button onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">×</button>
+                         </div>
+                     )}
+                     <form onSubmit={handleSendMessage} className="flex-1 flex">
+                         <input 
+                            ref={inputRef}
+                            value={inputText}
+                            onChange={e => setInputText(e.target.value)}
+                            className="flex-1 bg-transparent text-slate-700 text-sm focus:outline-none placeholder-gray-400 py-2"
+                            placeholder="Bir şeyler yaz..."
+                         />
+                     </form>
+                 </div>
 
-             <form onSubmit={handleSendMessage} className="flex-1 flex gap-2">
-                 <input 
-                    ref={inputRef}
-                    value={inputText}
-                    onChange={e => setInputText(e.target.value)}
-                    className="flex-1 bg-[#050505] text-gray-200 border border-gray-700 rounded px-3 md:px-4 text-sm focus:outline-none focus:border-[#00ff9d] placeholder-gray-600"
-                    placeholder="Mesaj..."
-                 />
-                 <button type="submit" className="px-3 md:px-6 bg-[#00ff9d] text-black font-bold text-xs md:text-sm rounded hover:bg-[#00cc7d] transition-colors">GÖNDER</button>
-             </form>
+                 {/* Send Button */}
+                 <button 
+                    onClick={() => handleSendMessage()}
+                    disabled={(!inputText.trim() && !selectedImage) || isBlocked}
+                    className={`p-3 rounded-full shadow-lg transition-all transform active:scale-90 flex items-center justify-center
+                        ${(!inputText.trim() && !selectedImage) || isBlocked 
+                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
+                            : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-indigo-300'}
+                    `}
+                 >
+                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 rotate-90" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                     </svg>
+                 </button>
+             </div>
          </div>
-
       </div>
 
-      {/* Fixed Right Sidebar: User List (Always Visible) */}
-      <div className="w-20 md:w-56 shrink-0 border-l border-gray-800 flex flex-col bg-[#1f1f1f]">
+      {/* User Sidebar - Hidden on mobile, visible on desktop */}
+      <div className="hidden md:flex">
           <UserList />
       </div>
 

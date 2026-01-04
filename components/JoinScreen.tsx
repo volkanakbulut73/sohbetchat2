@@ -37,7 +37,7 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
         if (room && userRecord) {
              const avatarUrl = (userRecord.avatar && userRecord.avatar.startsWith('http')) 
                 ? userRecord.avatar 
-                : `https://picsum.photos/seed/${userRecord.id}/200/200`;
+                : `https://api.dicebear.com/7.x/avataaars/svg?seed=${userRecord.id}&backgroundColor=b6e3f4`;
 
             const appUser = {
                 id: userRecord.id,
@@ -57,170 +57,150 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-slate-300 font-sans selection:bg-[#00ff9d] selection:text-black overflow-y-auto">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center p-4 font-sans text-slate-700">
       
-      {/* Top Bar */}
-      <div className="border-b border-gray-800 bg-[#0a0a0a] py-2 px-4 flex justify-between items-center text-[10px] md:text-xs font-mono tracking-widest text-gray-500">
-        <span>31.12.2025 00:49</span>
-        <span>Workigom Chat | Güvenli Sohbet Platformu</span>
-      </div>
-
-      {/* Main Container */}
-      <div className="container mx-auto px-4 py-12 md:py-20 flex flex-col md:flex-row items-center justify-center gap-12 md:gap-24">
+      <div className="max-w-4xl w-full bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col md:flex-row shadow-indigo-100/50 border border-white/50">
         
-        {/* Left Side: Hero & Text */}
-        <div className="flex-1 max-w-2xl text-center md:text-left space-y-8">
-            <div className="inline-block border border-[#00ff9d]/30 bg-[#00ff9d]/5 text-[#00ff9d] px-4 py-1 rounded text-xs font-mono tracking-wider animate-pulse">
-                SİSTEM DURUMU: GÜVENLİ ERİŞİM AKTİF
-            </div>
-
-            <h1 className="text-5xl md:text-7xl font-bold leading-tight text-white tracking-tight">
-                GERÇEK <span className="italic font-serif">İNSANLARLA,</span><br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00ff9d] to-emerald-600 drop-shadow-[0_0_15px_rgba(0,255,157,0.5)]">
-                    GÜVENLİ SOHBET
-                </span>
-            </h1>
-
-            <div className="flex flex-col md:flex-row items-center gap-4 border-l-4 border-[#00ff9d] pl-6 py-2 bg-gradient-to-r from-[#00ff9d]/5 to-transparent">
-                <p className="text-gray-400 text-lg leading-relaxed max-w-lg">
-                    Sabıka kaydı temiz, çalışan ve kimliği doğrulanmış kişilerle 
-                    huzurlu, seviyeli ve <strong className="text-white">gerçek sohbet ortamı.</strong>
+        {/* Left Side: Welcome Art */}
+        <div className="bg-[#6366f1] w-full md:w-1/2 p-12 text-white flex flex-col justify-between relative overflow-hidden">
+            {/* Abstract Shapes */}
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500/30 rounded-full blur-2xl -ml-10 -mb-10"></div>
+            
+            <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-8">
+                    <div className="w-10 h-10 bg-white rounded-xl shadow-lg flex items-center justify-center transform rotate-3">
+                        <span className="text-indigo-600 font-extrabold text-xl">W</span>
+                    </div>
+                    <span className="font-bold text-lg tracking-wide opacity-90">WORKIGOM</span>
+                </div>
+                
+                <h1 className="text-4xl font-extrabold leading-tight mb-4 tracking-tight">
+                    Sohbete<br/>Hoş Geldin!
+                </h1>
+                <p className="text-indigo-100 text-lg font-medium leading-relaxed opacity-90">
+                    Botlarla ve arkadaşlarınla konuşabileceğin en tatlı sohbet platformu.
                 </p>
             </div>
 
-            {/* Terminal / Visual from Page 4 */}
-            <div className="mt-8 rounded-lg overflow-hidden border border-gray-800 bg-[#0a0a0a] font-mono text-xs shadow-2xl max-w-md mx-auto md:mx-0 hidden md:block">
-                <div className="bg-gray-800 px-3 py-1 flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>
-                    <div className="w-2.5 h-2.5 rounded-full bg-yellow-500"></div>
-                    <div className="w-2.5 h-2.5 rounded-full bg-green-500"></div>
-                    <span className="ml-2 text-gray-400">status: connected to workigom</span>
-                </div>
-                <div className="p-4 space-y-2 text-green-500/80">
-                    <p>*** Local host: workigomchat.online (127.0.0.1)</p>
-                    <p>*** Checking identity protocol...</p>
-                    <div className="pl-4 space-y-1 text-[#00ff9d]">
-                        <p>✓ Identity verified: [Kimlik Onaylandı]</p>
-                        <p>✓ Criminal record: [Sicil Temiz]</p>
-                        <p>✓ Professional status: [Aktif Çalışan]</p>
+            <div className="relative z-10 mt-12 space-y-4">
+                <div className="flex items-center gap-4 bg-white/10 p-4 rounded-2xl backdrop-blur-md border border-white/10 transition-transform hover:scale-105">
+                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-2xl shadow-md">🤖</div>
+                    <div>
+                        <p className="font-bold text-white">Akıllı Asistanlar</p>
+                        <p className="text-xs text-indigo-100 opacity-80">Sadece ismini söylediğinde cevap verir.</p>
                     </div>
-                    <p className="text-purple-400">[ Sistem ]: Sohbete katılmaya yetkiniz var. İyi sohbetler :)</p>
-                    <p className="animate-pulse">_</p>
+                </div>
+                <div className="flex items-center gap-4 bg-white/10 p-4 rounded-2xl backdrop-blur-md border border-white/10 transition-transform hover:scale-105">
+                     <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-2xl shadow-md">💬</div>
+                    <div>
+                        <p className="font-bold text-white">Renkli Odalar</p>
+                        <p className="text-xs text-indigo-100 opacity-80">İlgi alanına göre odanı seç.</p>
+                    </div>
                 </div>
             </div>
         </div>
 
-        {/* Right Side: Auth Form */}
-        <div className="w-full max-w-md bg-[#0f0f0f] border border-gray-800 p-8 rounded-xl shadow-[0_0_40px_rgba(0,0,0,0.5)] relative group">
-            <div className="absolute -inset-0.5 bg-gradient-to-b from-[#00ff9d] to-purple-600 rounded-xl blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
-            
-            <div className="relative bg-[#0f0f0f] rounded-lg h-full flex flex-col">
-                <div className="mb-6 text-center">
-                    <h2 className="text-2xl font-bold text-white mb-2">
-                        {isLoginMode ? 'GİRİŞ YAP' : 'BAŞVUR VE KATIL'}
-                    </h2>
-                    <p className="text-gray-500 text-sm">
-                        {isLoginMode ? 'Hesabınıza erişmek için bilgilerinizi girin.' : 'Ayrıcalıklı dünyaya adım atın.'}
-                    </p>
-                </div>
+        {/* Right Side: Form */}
+        <div className="w-full md:w-1/2 p-8 md:p-12 bg-white">
+            <h2 className="text-3xl font-bold text-slate-800 mb-2 tracking-tight">
+                {isLoginMode ? 'Tekrar Merhaba! 👋' : 'Aramıza Katıl 🚀'}
+            </h2>
+            <p className="text-slate-500 text-sm mb-8 font-medium">
+                {isLoginMode ? 'Giriş yaparak sohbete kaldığın yerden devam et.' : 'Hızlıca hesap oluştur ve sohbete başla.'}
+            </p>
 
-                {error && (
-                    <div className="bg-red-900/20 border border-red-900/50 text-red-400 p-3 rounded mb-4 text-xs">
-                        {error}
+            {error && (
+                <div className="bg-red-50 text-red-500 p-3 rounded-2xl mb-6 text-sm font-medium border border-red-100 flex items-center gap-2">
+                    <span>⚠️</span> {error}
+                </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+                {!isLoginMode && (
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-400 ml-1 uppercase tracking-wider">İsim</label>
+                        <input 
+                            type="text"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            className="w-full bg-slate-50 border-2 border-slate-100 focus:border-indigo-500 focus:bg-white rounded-2xl px-4 py-3 outline-none transition-all text-sm font-semibold text-slate-700"
+                            placeholder="Sohbetteki Adın"
+                            required={!isLoginMode}
+                        />
                     </div>
                 )}
 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    {!isLoginMode && (
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1 ml-1 uppercase">Ad Soyad / Takma Ad</label>
-                            <input 
-                                type="text"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                className="w-full bg-[#1a1a1a] border border-gray-800 focus:border-[#00ff9d] text-white px-4 py-3 rounded outline-none transition-colors"
-                                placeholder="Sohbette görünecek isim"
-                                required={!isLoginMode}
-                            />
-                        </div>
-                    )}
-
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1 ml-1 uppercase">E-Posta Adresi</label>
-                        <input 
-                            type="email" 
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className="w-full bg-[#1a1a1a] border border-gray-800 focus:border-[#00ff9d] text-white px-4 py-3 rounded outline-none transition-colors"
-                            placeholder="ornek@email.com"
-                            required
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1 ml-1 uppercase">Şifre</label>
-                        <input 
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)} 
-                            className="w-full bg-[#1a1a1a] border border-gray-800 focus:border-[#00ff9d] text-white px-4 py-3 rounded outline-none transition-colors"
-                            placeholder="••••••••"
-                            required
-                        />
-                    </div>
-
-                    {/* Room Selection integrated into Login for flow simplicity */}
-                    <div>
-                         <label className="block text-xs font-bold text-gray-500 mb-2 ml-1 uppercase">Giriş Yapılacak Oda</label>
-                         <div className="grid grid-cols-1 gap-2">
-                            {ROOMS.map(room => (
-                                <label key={room.id} className={`flex items-center p-3 rounded border cursor-pointer transition-all ${selectedRoomId === room.id ? 'border-[#00ff9d] bg-[#00ff9d]/10' : 'border-gray-800 bg-[#1a1a1a] hover:bg-gray-800'}`}>
-                                    <input 
-                                        type="radio" 
-                                        name="room" 
-                                        value={room.id}
-                                        checked={selectedRoomId === room.id}
-                                        onChange={(e) => setSelectedRoomId(e.target.value)}
-                                        className="accent-[#00ff9d]"
-                                    />
-                                    <span className={`ml-3 text-sm ${selectedRoomId === room.id ? 'text-[#00ff9d]' : 'text-gray-400'}`}>{room.name}</span>
-                                </label>
-                            ))}
-                         </div>
-                    </div>
-
-                    <button 
-                        type="submit" 
-                        disabled={isLoading}
-                        className={`w-full py-4 mt-4 font-bold tracking-widest text-black uppercase transition-all transform hover:-translate-y-1 ${isLoading ? 'bg-gray-600 cursor-not-allowed' : 'bg-[#00ff9d] hover:shadow-[0_0_20px_#00ff9d]'}`}
-                    >
-                        {isLoading ? 'İŞLENİYOR...' : (isLoginMode ? 'SİSTEME GİRİŞ YAP ->' : 'KAYDI TAMAMLA ->')}
-                    </button>
-                </form>
-
-                <div className="mt-6 text-center">
-                    <button 
-                        onClick={() => { setIsLoginMode(!isLoginMode); setError(null); }}
-                        className="text-gray-500 hover:text-white text-sm underline decoration-gray-700 underline-offset-4 transition-colors"
-                    >
-                        {isLoginMode ? 'Hesabın yok mu? Başvur ve Katıl' : 'Zaten üye misin? Giriş Yap'}
-                    </button>
+                <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-400 ml-1 uppercase tracking-wider">E-Posta</label>
+                    <input 
+                        type="email" 
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full bg-slate-50 border-2 border-slate-100 focus:border-indigo-500 focus:bg-white rounded-2xl px-4 py-3 outline-none transition-all text-sm font-semibold text-slate-700"
+                        placeholder="mail@ornek.com"
+                        required
+                    />
                 </div>
+
+                <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-400 ml-1 uppercase tracking-wider">Şifre</label>
+                    <input 
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)} 
+                        className="w-full bg-slate-50 border-2 border-slate-100 focus:border-indigo-500 focus:bg-white rounded-2xl px-4 py-3 outline-none transition-all text-sm font-semibold text-slate-700"
+                        placeholder="••••••••"
+                        required
+                    />
+                </div>
+
+                <div className="pt-2">
+                     <label className="text-xs font-bold text-slate-400 ml-1 block mb-3 uppercase tracking-wider">Oda Seçimi</label>
+                     <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                        {ROOMS.map(room => (
+                            <label 
+                                key={room.id} 
+                                className={`
+                                    flex-shrink-0 cursor-pointer px-4 py-2.5 rounded-xl border-2 text-xs font-bold transition-all
+                                    ${selectedRoomId === room.id 
+                                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-200 scale-105' 
+                                        : 'bg-white border-slate-100 text-slate-400 hover:border-indigo-200'}
+                                `}
+                            >
+                                <input 
+                                    type="radio" 
+                                    name="room" 
+                                    value={room.id}
+                                    checked={selectedRoomId === room.id}
+                                    onChange={(e) => setSelectedRoomId(e.target.value)}
+                                    className="hidden"
+                                />
+                                {room.name}
+                            </label>
+                        ))}
+                     </div>
+                </div>
+
+                <button 
+                    type="submit" 
+                    disabled={isLoading}
+                    className={`w-full py-4 rounded-2xl font-bold text-white shadow-xl shadow-indigo-200 transition-all transform active:scale-[0.98] ${isLoading ? 'bg-indigo-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-indigo-300'}`}
+                >
+                    {isLoading ? 'Lütfen Bekleyin...' : (isLoginMode ? 'Giriş Yap' : 'Kayıt Ol')}
+                </button>
+            </form>
+
+            <div className="mt-8 text-center">
+                <button 
+                    onClick={() => { setIsLoginMode(!isLoginMode); setError(null); }}
+                    className="text-indigo-600 font-bold text-sm hover:text-indigo-800 transition-colors"
+                >
+                    {isLoginMode ? 'Hesabın yok mu? Kaydol' : 'Zaten üye misin? Giriş Yap'}
+                </button>
             </div>
         </div>
-
       </div>
-
-      {/* Footer */}
-      <footer className="mt-12 border-t border-gray-900 bg-[#050505] py-8 text-center text-gray-600 text-xs">
-            <div className="mb-4 text-[#00ff9d] font-bold tracking-[0.5em] opacity-50">WORKIGOM</div>
-            <p>WORKIGOM NETWORK SYSTEM © 2025</p>
-            <div className="mt-4 flex justify-center gap-6">
-                <span className="hover:text-white cursor-pointer">YÖNETİCİ GİRİŞİ</span>
-                <span className="hover:text-white cursor-pointer">DESTEK</span>
-                <span className="hover:text-white cursor-pointer">KVKK</span>
-            </div>
-      </footer>
     </div>
   );
 };
