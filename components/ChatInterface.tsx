@@ -1,32 +1,40 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Message } from '../types';
 import { generateGroupResponse } from '../services/geminiService';
+import { pb, sendMessageToPb, getRoomMessages } from '../services/pocketbase';
 
 /**
  * AiChatModule Props
- * Bu bileşeni başka bir uygulamaya entegre ederken bu props'ları kullanacaksınız.
  */
 interface AiChatModuleProps {
-  currentUser: User;           // Sohbet eden gerçek kullanıcı
-  topic: string;               // Sohbetin konusu
-  participants: User[];        // Sohbete dahil olacak botların listesi
-  title?: string;              // Opsiyonel: Başlık
-  height?: string;             // Opsiyonel: Yükseklik (default: 100%)
-  onClose?: () => void;        // Opsiyonel: Kapatma/Geri butonu işlevi
+  currentUser: User;           
+  topic: string;               
+  participants: User[];        
+  title?: string;
+  roomId?: string; // Room ID for DB queries
+  height?: string;             
+  onClose?: () => void;        
   
-  // Yeni Props
-  isPrivate?: boolean;         // Özel oda mı?
-  isBlocked?: boolean;         // Karşıdaki kişi engelli mi?
-  onBlockUser?: () => void;    // Engelleme fonksiyonu
-  onUnblockUser?: () => void;  // Engeli kaldırma fonksiyonu
-  onUserDoubleClick?: (user: User) => void; // Kullanıcıya çift tıklama
+  isPrivate?: boolean;         
+  isBlocked?: boolean;         
+  onBlockUser?: () => void;    
+  onUnblockUser?: () => void;  
+  onUserDoubleClick?: (user: User) => void; 
 }
+
+// Common emojis for the picker
+const EMOJIS = [
+  "😀", "😂", "😉", "😍", "😎", "😭", "😡", "🤔", "👍", "👎", 
+  "🙏", "💪", "❤️", "💔", "🎉", "🔥", "👋", "💋", "🌹", "⭐",
+  "😱", "😴", "🤮", "🤐", "🤯", "👻", "💩", "👀", "🙌", "👏"
+];
 
 const AiChatModule: React.FC<AiChatModuleProps> = ({ 
   currentUser, 
   topic, 
   participants, 
   title, 
+  roomId,
   height = "h-full", 
   onClose,
   isPrivate = false,
@@ -40,72 +48,112 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [showMobileUserList, setShowMobileUserList] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const emojiContainerRef = useRef<HTMLDivElement>(null);
+  const currentRoomId = roomId || (isPrivate ? `private_${currentUser.id}` : 'general');
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Initial greeting
+  // Sound Effect Initialization
   useEffect(() => {
-    // Sohbet her başladığında veya konu değiştiğinde sistemi sıfırla
-    const greetingText = isPrivate 
-      ? `${participants[0]?.name} ile özel sohbet başladı.`
-      : `${currentUser.name} sohbete katıldı.\nKonu: ${topic}`;
+    // Simple notification beep
+    audioRef.current = new Audio('https://cdn.pixabay.com/audio/2022/03/24/audio_73b3780373.mp3'); // Short beep sound
+    audioRef.current.volume = 0.5;
+  }, []);
 
-    const greeting: Message = {
-      id: 'system-welcome',
-      senderId: 'system',
-      senderName: 'Sistem',
-      senderAvatar: '',
-      text: greetingText,
-      timestamp: new Date(),
-      isUser: false,
+  const playNotificationSound = () => {
+    if (audioRef.current) {
+        audioRef.current.currentTime = 0;
+        audioRef.current.play().catch(e => console.log("Audio play blocked", e));
+    }
+  };
+
+  // Load History and Subscribe to Realtime
+  useEffect(() => {
+    // 1. Load History
+    const loadHistory = async () => {
+        const history = await getRoomMessages(currentRoomId);
+        if (history.length > 0) {
+            setMessages(history);
+        } else {
+             // Initial greeting if empty
+             const greetingText = isPrivate 
+               ? `${participants[0]?.name} ile özel sohbet başladı.`
+               : `${currentUser.name} sohbete katıldı.\nKonu: ${topic}`;
+
+             const greeting: Message = {
+               id: 'system-welcome',
+               senderId: 'system',
+               senderName: 'Sistem',
+               senderAvatar: '',
+               text: greetingText,
+               timestamp: new Date(),
+               isUser: false,
+             };
+             // Don't save system message to DB, just local view
+             setMessages([greeting]);
+        }
     };
-    setMessages([greeting]);
-    setInputText('');
-    setSelectedImage(null);
-  }, [currentUser, topic, isPrivate, participants]);
+    loadHistory();
 
-  // Hourly Cleanup Logic (Sadece Genel Odalar İçin)
-  useEffect(() => {
-    if (isPrivate) return;
+    // 2. Subscribe
+    pb.collection('messages').subscribe('*', function (e) {
+        if (e.action === 'create' && e.record.room === currentRoomId) {
+            // Check if we already have this message (optimistic update prevention)
+            setMessages(prev => {
+                if (prev.some(m => m.id === e.record.id)) return prev;
+                
+                // Play sound if not my message
+                if (e.record.senderId !== currentUser.id) {
+                    playNotificationSound();
+                }
 
-    const ONE_HOUR_MS = 60 * 60 * 1000; // 1 Saat
+                const newMsg: Message = {
+                    id: e.record.id,
+                    senderId: e.record.senderId,
+                    senderName: e.record.senderName,
+                    senderAvatar: e.record.senderAvatar,
+                    text: e.record.text,
+                    timestamp: new Date(e.record.created),
+                    isUser: e.record.isUser,
+                    image: e.record.image || undefined
+                };
+                return [...prev, newMsg];
+            });
+        }
+    });
 
-    const cleanupInterval = setInterval(() => {
-      setMessages((prevMessages) => {
-        if (prevMessages.length <= 1) return prevMessages;
+    return () => {
+        pb.collection('messages').unsubscribe('*');
+    };
+  }, [currentRoomId, currentUser, topic, isPrivate, participants]);
 
-        console.log("Saat başı temizlik çalıştı: Sohbet geçmişi sıfırlandı.");
 
-        const cleanupMsg: Message = {
-            id: `system-cleanup-${Date.now()}`,
-            senderId: 'system',
-            senderName: 'Sistem',
-            senderAvatar: '',
-            text: 'Performans optimizasyonu için sohbet geçmişi otomatik olarak temizlendi (Saat başı temizlik).',
-            timestamp: new Date(),
-            isUser: false,
-        };
-
-        return [cleanupMsg];
-      });
-    }, ONE_HOUR_MS);
-
-    return () => clearInterval(cleanupInterval);
-  }, [isPrivate]);
-
-  // Auto-scroll to bottom
+  // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping, selectedImage]);
 
-  // Focus input on mount
+  // Focus input
   useEffect(() => {
     if (!isBlocked) {
         inputRef.current?.focus();
     }
   }, [isBlocked]);
+
+  // Click outside listener for emoji picker
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (emojiContainerRef.current && !emojiContainerRef.current.contains(event.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -118,12 +166,54 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     }
   };
 
+  const insertAtCursor = (textToInsert: string) => {
+    if (!inputRef.current) return;
+    const input = inputRef.current;
+    const start = input.selectionStart || 0;
+    const end = input.selectionEnd || 0;
+    
+    const newText = 
+      inputText.substring(0, start) + 
+      textToInsert + 
+      inputText.substring(end);
+    
+    setInputText(newText);
+    setTimeout(() => {
+      input.selectionStart = input.selectionEnd = start + textToInsert.length;
+      input.focus();
+    }, 0);
+  };
+
+  const wrapSelection = (tagStart: string, tagEnd: string) => {
+    if (!inputRef.current) return;
+    const input = inputRef.current;
+    const start = input.selectionStart || 0;
+    const end = input.selectionEnd || 0;
+    
+    if (start === end) {
+        insertAtCursor(`${tagStart}${tagEnd}`);
+        return;
+    }
+
+    const selectedText = inputText.substring(start, end);
+    const newText = 
+      inputText.substring(0, start) + 
+      tagStart + selectedText + tagEnd + 
+      inputText.substring(end);
+      
+    setInputText(newText);
+    setTimeout(() => {
+        input.selectionStart = input.selectionEnd = end + tagStart.length + tagEnd.length;
+        input.focus();
+    }, 0);
+  };
+
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if ((!inputText.trim() && !selectedImage) || isBlocked) return;
 
-    const userMsg: Message = {
-      id: Date.now().toString(),
+    // 1. Prepare User Message
+    const userMsgPayload: Omit<Message, 'id'> = {
       senderId: currentUser.id,
       senderName: currentUser.name,
       senderAvatar: currentUser.avatar,
@@ -133,21 +223,27 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
       isUser: true,
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    // Optimistically update UI? 
+    // PocketBase realtime is fast, but let's clear input immediately
     setInputText('');
     setSelectedImage(null);
-    if (fileInputRef.current) fileInputRef.current.value = ''; // Reset file input
-    setIsTyping(true);
-
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    
     try {
-      // Doğallık için kısa bekleme
-      await new Promise(resolve => setTimeout(resolve, 600));
-
-      const updatedHistory = [...messages, userMsg];
+      // 2. Save User Message to PocketBase
+      // The realtime subscription will eventually update the UI, but we can do it optimistically too if needed.
+      // We rely on subscription for consistency here to avoid duplicates if network is fast.
+      await sendMessageToPb(userMsgPayload, currentRoomId);
       
-      // Servis çağrısı - Botların cevap üretmesi
+      // 3. Trigger Bot Logic
+      setIsTyping(true);
+
+      // Fetch current state from messages (state might be slightly stale compared to DB but acceptable for context)
+      // We need to append the user message manually to context since DB roundtrip might be pending
+      const tempHistoryForAI: Message[] = [...messages, { ...userMsgPayload, id: 'temp' }];
+
       const botResponses = await generateGroupResponse(
-        updatedHistory,
+        tempHistoryForAI,
         participants,
         topic,
         currentUser.name
@@ -156,38 +252,50 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
       setIsTyping(false);
 
       if (botResponses.length > 0) {
-        // Bot cevaplarını sırayla ve okuma hızı simülasyonu ile ekle
         for (const resp of botResponses) {
           const bot = participants.find((p) => p.id === resp.botId);
           if (bot) {
+            // Artificial delay for realism
             setIsTyping(true);
-            // Karakter sayısına göre bekleme süresi (min 800ms, max 2.5sn)
             await new Promise(resolve => setTimeout(resolve, Math.min(2500, Math.max(800, resp.message.length * 20))));
             setIsTyping(false);
 
-            const botMsg: Message = {
-              id: Date.now() + Math.random().toString(),
-              senderId: bot.id,
-              senderName: bot.name,
-              senderAvatar: bot.avatar,
-              text: resp.message,
-              timestamp: new Date(),
-              isUser: false,
+            // 4. Save Bot Message to PocketBase
+            const botMsgPayload: Omit<Message, 'id'> = {
+                senderId: bot.id,
+                senderName: bot.name,
+                senderAvatar: bot.avatar,
+                text: resp.message,
+                timestamp: new Date(),
+                isUser: false
             };
-            setMessages((prev) => [...prev, botMsg]);
+            await sendMessageToPb(botMsgPayload, currentRoomId);
           }
         }
       }
     } catch (err) {
-      console.error("Modül hatası:", err);
+      console.error("Mesajlaşma hatası:", err);
       setIsTyping(false);
     }
   };
 
-  // Combine currentUser and participants for the list
+  const renderFormattedText = (text: string) => {
+    const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|__.*?__)/g);
+    return parts.map((part, index) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+            return <strong key={index} className="font-bold">{part.slice(2, -2)}</strong>;
+        } else if (part.startsWith('__') && part.endsWith('__')) {
+            return <u key={index} className="underline decoration-2">{part.slice(2, -2)}</u>;
+        } else if (part.startsWith('*') && part.endsWith('*')) {
+            if(part.length > 2) return <em key={index} className="italic">{part.slice(1, -1)}</em>;
+            return part;
+        }
+        return part;
+    });
+  };
+
   const allUsersInRoom = [currentUser, ...participants];
 
-  // Reusable User List Component Logic
   const UserListContent = (
     <ul className="divide-y divide-gray-100">
       {allUsersInRoom.map((user) => (
@@ -195,21 +303,16 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
             key={user.id} 
             className="p-2 hover:bg-white hover:shadow-sm cursor-pointer transition-colors group flex items-center gap-2 select-none"
             onDoubleClick={() => {
-                // Kendi ismine tıklarsa bir şey yapma, bot ise tetikle
                 if (user.id !== currentUser.id && onUserDoubleClick) {
                     onUserDoubleClick(user);
                 }
             }}
             title={user.id !== currentUser.id ? "Özel mesaj için çift tıkla" : ""}
         >
-            {/* Avatar */}
             <div className="relative">
                 <img src={user.avatar} alt={user.name} className="w-8 h-8 rounded-md object-cover" />
-                {/* Online Status Dot */}
                 <div className="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full"></div>
             </div>
-            
-            {/* Name & Role */}
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1">
                     {user.isBot && (
@@ -250,7 +353,6 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
         </div>
         <div className="flex items-center gap-3">
           
-          {/* Private Chat Block Button */}
           {isPrivate && (
               <button
                 onClick={isBlocked ? onUnblockUser : onBlockUser}
@@ -264,7 +366,6 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
               </button>
           )}
 
-          {/* Mobile User List Toggle Button */}
           <button 
             className="md:hidden text-gray-300 hover:text-white p-1"
             onClick={() => setShowMobileUserList(!showMobileUserList)}
@@ -289,10 +390,8 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
         </div>
       </header>
 
-      {/* Main Content Area (Split: Chat | UserList) */}
       <div className="flex flex-1 overflow-hidden relative">
         
-        {/* Left Column: Messages & Input */}
         <div className="flex flex-col flex-1 w-full">
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white relative">
@@ -335,14 +434,15 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                             </span>
                             )}
                             
-                            {/* Render Image if exists */}
                             {msg.image && (
                                 <div className="mb-2 rounded-lg overflow-hidden border border-white/20">
                                     <img src={msg.image} alt="Sent attachment" className="max-w-full h-auto max-h-60 object-contain" />
                                 </div>
                             )}
 
-                            <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
+                            <p className="whitespace-pre-wrap leading-relaxed">
+                                {renderFormattedText(msg.text)}
+                            </p>
                             <span className={`text-[10px] mt-1 block text-right opacity-60`}>
                             {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
@@ -352,7 +452,6 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                 );
                 })}
 
-                {/* Typing Indicator */}
                 {isTyping && (
                 <div className="flex w-full justify-start pl-10">
                         <div className="bg-slate-100 p-2 px-4 rounded-full flex items-center gap-1">
@@ -365,8 +464,93 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Area */}
-            <div className="bg-slate-50 border-t border-gray-200 p-3 z-10">
+            {/* Formatting Toolbar & Input Area */}
+            <div className="bg-slate-50 border-t border-gray-200 p-2 z-10">
+                {/* Toolbar */}
+                <div className="flex items-center gap-2 mb-2 px-1 relative">
+                    <div className="relative" ref={emojiContainerRef}>
+                        <button 
+                            type="button" 
+                            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                            className="p-1.5 hover:bg-slate-200 rounded text-slate-600"
+                            title="İfadeler"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-yellow-500">
+                                <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zm-2.625 6c-.54 0-.828.419-.936.634a6.765 6.765 0 00-.16.6h2.192c0-.222-.063-.405-.16-.604-.108-.215-.395-.63-.936-.63zm4.388.634c.108.215.395.63.936.63.54 0 .828-.419.936-.634a6.765 6.765 0 00.16-.6h-2.192c0 .222.063.405.16.604zm-1.121 6.545a1.125 1.125 0 011.603 0 4.125 4.125 0 010 5.835 1.125 1.125 0 01-1.603-1.602 1.875 1.875 0 000-2.631 1.125 1.125 0 010-1.602z" clipRule="evenodd" />
+                            </svg>
+                        </button>
+                        
+                        {showEmojiPicker && (
+                            <div className="absolute bottom-10 left-0 bg-white border border-gray-200 shadow-xl rounded-lg p-3 w-64 z-50 grid grid-cols-6 gap-2 h-48 overflow-y-auto">
+                                {EMOJIS.map((emoji) => (
+                                    <button 
+                                        key={emoji} 
+                                        onClick={() => {
+                                            insertAtCursor(emoji);
+                                            setShowEmojiPicker(false);
+                                        }}
+                                        className="text-xl hover:bg-slate-100 rounded p-1"
+                                    >
+                                        {emoji}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="h-4 w-px bg-gray-300 mx-1"></div>
+
+                    <button 
+                        type="button" 
+                        onClick={() => wrapSelection('**', '**')}
+                        className="p-1.5 hover:bg-slate-200 rounded font-bold text-slate-700 w-8 text-center"
+                        title="Kalın (Bold)"
+                    >
+                        B
+                    </button>
+                    <button 
+                        type="button" 
+                        onClick={() => wrapSelection('*', '*')}
+                        className="p-1.5 hover:bg-slate-200 rounded italic text-slate-700 w-8 text-center font-serif"
+                        title="İtalik"
+                    >
+                        I
+                    </button>
+                    <button 
+                        type="button" 
+                        onClick={() => wrapSelection('__', '__')}
+                        className="p-1.5 hover:bg-slate-200 rounded underline text-slate-700 w-8 text-center"
+                        title="Altı Çizili"
+                    >
+                        U
+                    </button>
+                    
+                    {isPrivate && (
+                        <>
+                             <div className="h-4 w-px bg-gray-300 mx-1"></div>
+                             <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                ref={fileInputRef}
+                                onChange={handleImageSelect}
+                                disabled={isBlocked}
+                             />
+                             <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isBlocked}
+                                className={`p-1.5 rounded hover:bg-slate-200 text-slate-600 ${isBlocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                title="Resim Gönder"
+                             >
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                                    <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6zM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0021 18v-1.94l-2.69-2.689a1.5 1.5 0 00-2.12 0l-.88.879.97.97a.75.75 0 11-1.06 1.06l-5.16-5.159a1.5 1.5 0 00-2.12 0L3 16.061zm10.125-7.81a1.125 1.125 0 112.25 0 1.125 1.125 0 01-2.25 0z" clipRule="evenodd" />
+                                </svg>
+                             </button>
+                        </>
+                    )}
+                </div>
+
                 {/* Image Preview */}
                 {selectedImage && (
                     <div className="mb-2 flex items-center gap-2 p-2 bg-slate-200 rounded-lg w-fit">
@@ -386,36 +570,6 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                 )}
 
                 <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-                    
-                    {/* Image Upload Button - Only for Private Rooms */}
-                    {isPrivate && (
-                        <>
-                            <input
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                ref={fileInputRef}
-                                onChange={handleImageSelect}
-                                disabled={isBlocked}
-                            />
-                            <button
-                                type="button"
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={isBlocked}
-                                className={`p-2.5 rounded-lg border transition-all ${
-                                    isBlocked 
-                                    ? 'bg-gray-200 text-gray-400 border-gray-200 cursor-not-allowed'
-                                    : 'bg-white text-gray-500 border-gray-300 hover:text-indigo-600 hover:border-indigo-500'
-                                }`}
-                                title="Resim Gönder"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                                    <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6zM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0021 18v-1.94l-2.69-2.689a1.5 1.5 0 00-2.12 0l-.88.879.97.97a.75.75 0 11-1.06 1.06l-5.16-5.159a1.5 1.5 0 00-2.12 0L3 16.061zm10.125-7.81a1.125 1.125 0 112.25 0 1.125 1.125 0 01-2.25 0z" clipRule="evenodd" />
-                                </svg>
-                            </button>
-                        </>
-                    )}
-
                     <input
                         ref={inputRef}
                         type="text"

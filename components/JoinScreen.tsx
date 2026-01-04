@@ -1,30 +1,56 @@
 import React, { useState } from 'react';
 import { ROOMS } from '../constants';
 import { ChatRoom } from '../types';
+import { loginOrRegister } from '../services/pocketbase.ts';
 
 interface JoinScreenProps {
-  onJoin: (name: string, room: ChatRoom) => void;
+  onJoin: (user: any, room: ChatRoom) => void;
 }
 
 const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
   const [name, setName] = useState('');
   const [selectedRoomId, setSelectedRoomId] = useState(ROOMS[0].id);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
     
-    const room = ROOMS.find(r => r.id === selectedRoomId);
-    if (room) {
-      onJoin(name, room);
+    setIsLoading(true);
+    setError(null);
+
+    try {
+        const userRecord = await loginOrRegister(name);
+        
+        const room = ROOMS.find(r => r.id === selectedRoomId);
+        if (room && userRecord) {
+            // PB user record'unu bizim app user formatına uyarla.
+            // Eğer PB'den avatar gelmezse (ki gelmeyecek çünkü file upload yapmadık),
+            // Picsum'dan seed ile avatar üret.
+            const avatarUrl = (userRecord.avatar && userRecord.avatar.startsWith('http')) 
+                ? userRecord.avatar 
+                : `https://picsum.photos/seed/${userRecord.id}/200/200`;
+
+            const appUser = {
+                id: userRecord.id,
+                name: userRecord.name || userRecord.username,
+                avatar: avatarUrl,
+                isBot: false
+            };
+            onJoin(appUser, room);
+        }
+    } catch (err: any) {
+        console.error(err);
+        setError("Giriş yapılamadı. PocketBase sunucusunun çalıştığından (http://72.62.178.90:8090) ve 'users' koleksiyonunun erişilebilir olduğundan emin olun.");
+    } finally {
+        setIsLoading(false);
     }
   };
 
-  // Simulate active user counts since there is no backend
   const getOnlineCount = (roomId: string) => {
-    // Generate a consistent number based on room ID to mimic real activity
     const hash = roomId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return (hash % 40) + 12; // Returns a number between 12 and 51
+    return (hash % 40) + 12;
   };
 
   return (
@@ -40,6 +66,12 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
           <p className="text-gray-500 mt-2">İsminizi seçin ve bir odaya girin.</p>
         </div>
 
+        {error && (
+            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg mb-4 text-sm">
+                {error}
+            </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
@@ -53,6 +85,7 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
               placeholder="Örn: Ahmet"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              disabled={isLoading}
             />
           </div>
 
@@ -77,6 +110,7 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
                     checked={selectedRoomId === room.id}
                     onChange={(e) => setSelectedRoomId(e.target.value)}
                     className="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300"
+                    disabled={isLoading}
                   />
                   <div className="ml-3">
                     <span className="block text-sm font-medium text-gray-900">
@@ -98,12 +132,25 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
 
           <button
             type="submit"
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition-colors shadow-lg shadow-indigo-500/30 flex items-center justify-center"
+            disabled={isLoading}
+            className={`w-full text-white font-bold py-3 px-4 rounded-lg transition-colors shadow-lg shadow-indigo-500/30 flex items-center justify-center ${isLoading ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}
           >
-            Sohbete Başla
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-2" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
+            {isLoading ? (
+                <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Bağlanılıyor...
+                </>
+            ) : (
+                <>
+                    Sohbete Başla
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-2" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                </>
+            )}
           </button>
         </form>
       </div>
