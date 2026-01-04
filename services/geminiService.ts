@@ -1,5 +1,75 @@
 
-// Bu servis artık kullanılmamaktadır.
-// Bot mantığı backend hooks tarafına taşınmıştır.
-export const generateGroupResponse = () => {};
+import { GoogleGenAI, Type } from "@google/genai";
+import { Message, User, BotResponseItem } from '../types.ts';
+
+// API Key process.env üzerinden alınır
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+export const generateGroupResponse = async (
+  messages: Message[],
+  participants: User[],
+  topic: string,
+  user_name: string
+): Promise<BotResponseItem[]> => {
+  // Sadece botları filtrele (Sokrates hariç, onun kendi servisi var ama buraya da dahil edebiliriz duruma göre)
+  // Logic: Sokrates chatInterface'de ayrı handle ediliyor, ama grup dinamiği için burada da farkındalık yaratabiliriz.
+  // Şimdilik standart botları alalım.
+  const bots = participants.filter(p => p.isBot);
+  
+  if (bots.length === 0) return [];
+
+  // Son 10 mesajı al
+  const recentMessages = messages.slice(-10);
+  const historyText = recentMessages.map(m => `${m.senderName}: ${m.text}`).join('\n');
+  
+  const botList = bots.map(b => `- ${b.name} (ID: ${b.id}, Rol: ${b.role})`).join('\n');
+
+  const prompt = `
+    Sen bir grup sohbeti yöneticisisin. Aşağıdaki senaryoya göre hangi botların cevap vereceğine karar ver.
     
+    Konu: ${topic}
+    
+    Mevcut Botlar:
+    ${botList}
+    
+    Konuşma Geçmişi:
+    ${historyText}
+    
+    Kurallar:
+    1. Her mesaja herkes cevap vermemeli. Sadece karakterine uygunsa ve söz sırası geldiyse cevap ver.
+    2. Cevaplar kısa, doğal ve karakterin rolüne uygun olmalı.
+    3. Eğer kimsenin cevap vermesi gerekmiyorsa boş bir liste döndür.
+    4. "Sokrates" (bot_socrates) seçilirse, mesaj kısmına sadece "..." koy, içeriği başka bir servis üretecek.
+    
+    JSON formatında çıktı ver:
+    [ { "botId": "bot_id", "message": "cevap metni" } ]
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              botId: { type: Type.STRING },
+              message: { type: Type.STRING }
+            }
+          }
+        }
+      }
+    });
+
+    const text = response.text;
+    if (!text) return [];
+    
+    return JSON.parse(text) as BotResponseItem[];
+  } catch (error) {
+    console.error("Gemini Group AI Error:", error);
+    return [];
+  }
+};
