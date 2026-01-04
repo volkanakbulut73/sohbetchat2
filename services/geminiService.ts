@@ -9,11 +9,10 @@ export const generateGroupResponse = async (
 ): Promise<BotResponseItem[]> => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) {
-    console.error("API Key (process.env.API_KEY) bulunamadı. Lütfen kontrol edin.");
+    console.error("API Key bulunamadı.");
     return [];
   }
 
-  // Her çağrıda yeni bir instance oluşturulması önerilir
   const ai = new GoogleGenAI({ apiKey });
 
   const bots = participants.filter((p) => p.isBot);
@@ -23,9 +22,13 @@ export const generateGroupResponse = async (
     .map((b) => `- ${b.name} (ID: ${b.id}): ${b.role}`)
     .join("\n");
 
+  // AI'ya göndermeden önce HTML etiketlerini temizliyoruz (botlar karışmasın diye)
   const recentMessages = messages.slice(-15);
   const historyText = recentMessages
-    .map((m) => `${m.senderName}: ${m.text}${m.image ? " [RESİM]" : ""}`)
+    .map((m) => {
+      const cleanText = m.text.replace(/<[^>]*>?/gm, ''); // HTML tag stripping
+      return `${m.senderName}: ${cleanText}${m.image ? " [RESİM]" : ""}`;
+    })
     .join("\n");
 
   const systemInstruction = `
@@ -35,30 +38,28 @@ export const generateGroupResponse = async (
     Aktif Karakterler (Botlar):
     ${botDescriptions}
     
-    KURALLAR:
-    1. Botlar CANLI ve ETKİLEŞİMLİ olmalıdır. 
-    2. Kullanıcı "Selam", "Merhaba" gibi giriş mesajları yazarsa, botlar (özellikle Atlas veya Cem) samimi bir şekilde karşılık vermelidir.
-    3. Eğer kullanıcı bir botun ismini doğrudan söylerse, o bot kesinlikle cevap vermelidir.
-    4. Eğer genel bir soru sorulursa veya konu bir botun uzmanlığına giriyorsa, bot sohbete katılmalıdır.
-    5. Cevaplar kısa (max 2-3 cümle), Türkçe ve karakterin kişiliğine uygun olmalıdır.
-    6. Aynı anda en fazla 2 bot cevap verebilir (kaos olmaması için).
+    ÖNEMLİ KURALLAR:
+    1. Botlar CANLI, etkileşimli ve kişiliklerine uygun (Atlas bilge, Luna teknoloji meraklısı, Gölge şüpheci, Cem komik) konuşmalıdır.
+    2. Cevaplar KESİNLİKE saf metin olmalı, HTML etiketi içermemelidir.
+    3. Kullanıcıya "${userName}" ismiyle hitap edebilirsin.
+    4. En fazla 2 botun cevabını üret.
     
     ÇIKTI FORMATI:
-    Yalnızca saf JSON dizisi döndür. Başka metin ekleme.
+    Sadece JSON dizisi döndür.
     Örnek:
     [
-      { "botId": "bot_atlas", "message": "Merhaba ${userName}, hoş geldin! Konumuz olan ${topic} hakkında ne düşünüyorsun?" }
+      { "botId": "bot_atlas", "message": "Merhaba ${userName}, nasılsın?" }
     ]
   `;
 
   try {
     const lastMessage = messages[messages.length - 1];
-    let contents: any = { parts: [{ text: `Sohbet Geçmişi:\n${historyText}\n\nAnaliz et ve uygun botların (varsa) cevaplarını JSON olarak üret.` }] };
+    let parts: any[] = [{ text: `Sohbet Geçmişi:\n${historyText}\n\nLütfen uygun botların cevaplarını JSON olarak üret.` }];
 
     if (lastMessage && lastMessage.image) {
         const base64Data = lastMessage.image.split(',')[1];
         if (base64Data) {
-            contents.parts.push({
+            parts.push({
                 inlineData: {
                     mimeType: 'image/jpeg', 
                     data: base64Data
@@ -69,11 +70,11 @@ export const generateGroupResponse = async (
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: contents,
+      contents: [{ parts }],
       config: {
         systemInstruction: systemInstruction,
         responseMimeType: "application/json",
-        temperature: 0.8, // Daha yaratıcı ve katılımcı cevaplar için
+        temperature: 0.8,
         responseSchema: {
           type: Type.ARRAY,
           items: {
@@ -88,15 +89,21 @@ export const generateGroupResponse = async (
       },
     });
 
-    if (response.text) {
-        // Markdown bloklarını temizle
-        const cleanJson = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
-        const parsed = JSON.parse(cleanJson) as BotResponseItem[];
-        return parsed.filter(item => bots.some(b => b.id === item.botId));
+    const resultText = response.text;
+    if (resultText) {
+        try {
+            // JSON bloğu içindeyse temizle
+            const cleanJson = resultText.replace(/```json/g, '').replace(/```/g, '').trim();
+            const parsed = JSON.parse(cleanJson) as BotResponseItem[];
+            return parsed.filter(item => bots.some(b => b.id === item.botId));
+        } catch (e) {
+            console.error("JSON Parse Hatası:", e, resultText);
+            return [];
+        }
     }
     return [];
   } catch (error) {
-    console.error("Gemini API Error Detail:", error);
+    console.error("Gemini API Hatası:", error);
     return [];
   }
 };

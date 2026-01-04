@@ -133,8 +133,10 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     setShowEmojiPicker(false);
     
     try {
+      // Önce kullanıcının mesajını gönder
       await sendMessageToPb(userMsgPayload, currentRoomId);
       
+      // Botları düşünmeye başlat
       setIsTyping(true);
       const botResponses = await generateGroupResponse(
         [...messages, { ...userMsgPayload, id: 'temp' }], 
@@ -142,15 +144,13 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
         topic, 
         currentUser.name
       );
-      setIsTyping(false);
 
-      if (botResponses) {
+      if (botResponses && botResponses.length > 0) {
         for (const resp of botResponses) {
           const bot = participants.find((p) => p.id === resp.botId);
           if (bot) {
             setIsTyping(true);
             await new Promise(resolve => setTimeout(resolve, 1500));
-            setIsTyping(false);
             await sendMessageToPb({
                 senderId: bot.id,
                 senderName: bot.name,
@@ -162,8 +162,9 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
           }
         }
       }
+      setIsTyping(false);
     } catch (err) {
-      console.error("Hata:", err);
+      console.error("Mesaj gönderilirken hata oluştu:", err);
       setIsTyping(false);
     }
   };
@@ -180,8 +181,6 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   return (
     <div className="flex h-full w-full bg-white overflow-hidden relative">
       <div className="flex-1 flex flex-col min-w-0 relative h-full border-r border-gray-50">
-         {/* ÜST BAŞLIK KALDIRILDI (İsteğiniz üzerine) */}
-
          <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 bg-[#f8f9fa] touch-auto">
             {messages.map((msg, index) => {
                 const isMe = msg.senderId === currentUser.id;
@@ -205,11 +204,10 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                     </div>
                 )
             })}
-            {isTyping && <div className="ml-10 bg-white px-3 py-1.5 rounded-full w-fit shadow-sm border border-gray-50 animate-pulse text-[10px] text-blue-500 font-bold">Yazıyor...</div>}
+            {isTyping && <div className="ml-10 bg-white px-3 py-1.5 rounded-full w-fit shadow-sm border border-gray-100 animate-pulse text-[10px] text-blue-500 font-bold">Yazıyor...</div>}
             <div ref={messagesEndRef} className="h-4" />
          </div>
 
-         {/* ZENGİN METİN GİRİŞ ALANI - GENİŞLETİLDİ */}
          <div className="bg-white border-t border-gray-100 p-2 sm:p-4 relative z-40">
              <div className="w-full">
                  
@@ -224,7 +222,6 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                  )}
 
                  <div className="flex flex-col border border-gray-200 rounded-2xl overflow-hidden focus-within:border-blue-400 transition-all bg-white shadow-sm">
-                    {/* ARAÇ ÇUBUĞU */}
                     <div className="flex items-center gap-1 px-3 py-2 border-b border-gray-50 bg-gray-50/50">
                         <button 
                             onMouseDown={(e) => { e.preventDefault(); execCommand('bold'); }} 
@@ -245,7 +242,6 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                         >😊</button>
                     </div>
 
-                    {/* DÜZENLENEBİLİR ALAN - MİNİMUM YÜKSEKLİK ARTIRILDI */}
                     <div className="flex items-center gap-2 p-3">
                         <div
                             ref={editorRef}
@@ -269,12 +265,10 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                         </button>
                     </div>
                  </div>
-                 {/* ALT YARDIM METNİ KALDIRILDI (İsteğiniz üzerine) */}
              </div>
          </div>
       </div>
       
-      {/* ÜYE LİSTESİ */}
       <div className="hidden sm:flex flex-col w-64 border-l border-gray-100 bg-white p-4">
           <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Üyeler</h3>
           <div className="space-y-3 overflow-y-auto">
