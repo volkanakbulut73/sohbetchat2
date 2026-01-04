@@ -331,7 +331,9 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
           try {
             await setUserOpStatus(targetUser.id, !targetUser.isOp);
             alert("İşlem başarılı.");
-          } catch(e) { alert("Hata oluştu."); }
+          } catch(e: any) { 
+              alert(e.message || "Hata oluştu."); 
+          }
       }
   };
 
@@ -341,7 +343,9 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
           try {
              await kickUser(targetUser.id);
              alert("Kullanıcı atıldı.");
-          } catch(e) { alert("Hata oluştu."); }
+          } catch(e: any) { 
+              alert(e.message || "Hata oluştu."); 
+          }
       }
   };
 
@@ -350,30 +354,19 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
       // Not: Admin, ban listesini düzenleyebilir, Op sadece ekleyebilir (arayüz kısıtı App.tsx'de)
       if (confirm(`${targetUser.name} adlı kullanıcıyı süresiz yasaklamak (Ban) istiyor musunuz?`)) {
           try {
-              // Email bilgisi lazım, normalde user objesinde olmayabilir (public ise).
-              // Ancak admin authStore'da bunu görebilir veya user listesi full geliyorsa.
-              // Güvenlik için sadece ID gönderiyoruz ama backend'de email resolve edilmeli.
-              // Şimdilik client-side email bilmiyorsak prompt ile alalım veya user objesinde varsa kullanalım.
-              // Workigom sisteminde user listesinde email public değilse ban çalışmayabilir.
-              // Bu yüzden user objesinde email'in geldiğini varsayıyoruz (sadece adminlere görünürse daha iyi).
-              // PB varsayılan ayarında list'de email dönmeyebilir. 
-              // Şimdilik banUser servisi email parametresi istiyor.
-              // Gerçek senaryoda backend hook kullanmak daha doğru.
-              
               // Hile: Banlamak için email lazım. Eğer user objesinde yoksa soralım.
               let email = (targetUser as any).email;
               if (!email) {
-                 // Fetch details?
-                 // Admin olduğumuz için full list çekebiliyoruz, orada email olabilir.
-                 // Şimdilik basitlik adına:
                  const reason = prompt("Banlamak için kullanıcının e-postasını doğrulayın (veya veritabanından bulacaktır):", "");
                  if(!reason) return; // İptal
-                 email = reason; // Geçici çözüm, API'de email alanı açıksa oradan gelir.
+                 email = reason; 
               }
 
               await banUser(targetUser.id, email);
               alert("Kullanıcı yasaklandı.");
-          } catch(e) { alert("Banlama hatası (E-posta gerekli)."); }
+          } catch(e: any) { 
+              alert(e.message || "Banlama hatası (E-posta gerekli)."); 
+          }
       }
   };
 

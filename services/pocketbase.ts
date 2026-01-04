@@ -172,7 +172,7 @@ export const banUser = async (targetUserId: string, targetEmail: string) => {
 
     } catch (e: any) {
         if (e.status === 404) {
-             const errMsg = "Sistem Hatası: 'banned_users' tablosu eksik. Lütfen veritabanı panelinden oluşturun.";
+             const errMsg = "Sistem Hatası: 'banned_users' tablosu eksik veya yazma izniniz yok.";
              console.error(errMsg);
              alert(errMsg);
              return;
@@ -206,7 +206,7 @@ export const unbanUser = async (banRecordId: string) => {
         await pb.collection('banned_users').delete(banRecordId);
     } catch (e: any) {
         if (e.status === 404) {
-             alert("'banned_users' tablosu bulunamadı.");
+             alert("'banned_users' tablosu bulunamadı veya silme izniniz yok.");
              return;
          }
         console.error("Ban kaldırma hatası:", e);
@@ -221,8 +221,11 @@ export const kickUser = async (targetUserId: string) => {
         await pb.collection('users').update(targetUserId, {
             kicked: true
         });
-    } catch (e) {
+    } catch (e: any) {
         console.error("Kick hatası:", e);
+        if (e.status === 404) {
+            throw new Error("YETKİ HATASI: 'users' tablosunda 'Update Rule' ayarı adminlere kapalı. Lütfen PB panelinden 'id = @request.auth.id || @request.auth.isAdmin = true' kuralını ekleyin.");
+        }
         throw e;
     }
 };
@@ -233,8 +236,11 @@ export const setUserOpStatus = async (targetUserId: string, isOp: boolean) => {
         await pb.collection('users').update(targetUserId, {
             isOp: isOp
         });
-    } catch (e) {
+    } catch (e: any) {
         console.error("Op yetkisi değiştirme hatası:", e);
+        if (e.status === 404) {
+            throw new Error("YETKİ HATASI: 'users' tablosunda 'Update Rule' ayarı adminlere kapalı. Lütfen PB panelinden 'id = @request.auth.id || @request.auth.isAdmin = true' kuralını ekleyin.");
+        }
         throw e;
     }
 };
