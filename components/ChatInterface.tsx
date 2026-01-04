@@ -252,8 +252,8 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
             </div>
          </div>
 
-         {/* Messages Area - The actual chat bubbles */}
-         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 bg-slate-50 relative">
+         {/* Messages Area */}
+         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5 bg-[#F9FAFB] relative">
             {messages.map((msg, index) => {
                 if (msg.senderId === 'system') return (
                     <div key={msg.id} className="flex justify-center my-4">
@@ -265,47 +265,52 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                 const showAvatar = index === 0 || messages[index - 1].senderId !== msg.senderId;
 
                 return (
-                    <div key={msg.id} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'} group`}>
+                    <div key={msg.id} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-start group`}>
                         {/* Avatar */}
-                        <div className={`shrink-0 flex flex-col justify-end ${!showAvatar ? 'invisible' : ''}`}>
-                            <img src={msg.senderAvatar} className="w-8 h-8 rounded-full shadow-sm bg-gray-200 object-cover" />
+                        <div className={`shrink-0 ${!showAvatar ? 'invisible' : ''}`}>
+                            <img src={msg.senderAvatar} className="w-8 h-8 rounded-full shadow-sm bg-gray-200 object-cover border border-white" />
                         </div>
 
                         {/* Message Bubble Container */}
-                        <div className={`flex flex-col max-w-[75%] ${isMe ? 'items-end' : 'items-start'}`}>
+                        <div className={`flex flex-col max-w-[70%] ${isMe ? 'items-end' : 'items-start'}`}>
                              {showAvatar && (
-                                 <span className={`text-[10px] font-bold mb-1 px-1 ${isMe ? 'text-indigo-600' : 'text-gray-500'}`}>
+                                 <span className="text-[11px] text-gray-400 mb-1 px-1">
                                      {msg.senderName}
                                  </span>
                              )}
                              
                              <div className={`
-                                 relative px-4 py-2.5 text-sm shadow-sm transition-all
+                                 relative px-4 py-3 text-[14px] leading-relaxed shadow-sm transition-all
                                  ${isMe 
-                                     ? 'bg-indigo-600 text-white rounded-2xl rounded-tr-none hover:bg-indigo-700' 
-                                     : 'bg-white text-slate-700 rounded-2xl rounded-tl-none border border-gray-100 hover:border-gray-200'}
+                                     ? 'bg-[#2563eb] text-white rounded-[20px] rounded-tr-sm' // Blue bubble for User
+                                     : 'bg-white text-slate-800 rounded-[20px] rounded-tl-sm shadow-[0_2px_5px_rgba(0,0,0,0.05)] border border-gray-50'} // White bubble for Bots
                              `}>
                                 {msg.image && (
-                                    <img src={msg.image} className="max-w-full h-40 object-cover rounded-lg mb-2 bg-white" />
+                                    <img src={msg.image} className="max-w-full h-40 object-cover rounded-xl mb-2 bg-white" />
                                 )}
-                                <div className="whitespace-pre-wrap leading-relaxed">{msg.text}</div>
-                                
-                                {/* Timestamp inside bubble */}
-                                <div className={`text-[9px] mt-1 text-right opacity-70 ${isMe ? 'text-indigo-100' : 'text-gray-400'}`}>
+                                <div className="whitespace-pre-wrap">{msg.text}</div>
+                             </div>
+                             
+                             {/* Timestamp outside bubble */}
+                             {showAvatar && (
+                                <div className="text-[9px] text-gray-300 mt-1 px-1">
                                     {msg.timestamp.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
                                 </div>
-                             </div>
+                             )}
                         </div>
                     </div>
                 )
             })}
             
             {isTyping && (
-                <div className="flex items-center gap-2 ml-12 mt-2">
-                    <div className="flex space-x-1">
-                        <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce delay-75"></div>
-                        <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce delay-150"></div>
+                <div className="flex items-center gap-3 ml-12 mt-2">
+                     <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm border border-gray-100">
+                        <span className="text-xs">💬</span>
+                     </div>
+                    <div className="flex space-x-1.5 bg-white px-4 py-3 rounded-full shadow-sm border border-gray-50">
+                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div>
+                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce delay-75"></div>
+                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce delay-150"></div>
                     </div>
                 </div>
             )}
