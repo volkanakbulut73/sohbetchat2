@@ -59,34 +59,3 @@ export const sendMessageToPb = async (msg: Omit<Message, 'id'>, roomId: string) 
     console.error("Mesaj gönderme hatası:", error);
     throw error;
   }
-};
-
-export const getRoomMessages = async (roomId: string) => {
-  try {
-    const resultList = await pb.collection('messages').getList(1, 50, {
-      filter: `room = "${roomId}"`,
-      sort: 'created', // Eskiden yeniye
-      expand: 'senderId',
-    });
-    
-    // PB record'larını bizim Message tipimize dönüştür
-    return resultList.items.map(record => ({
-      id: record.id,
-      senderId: record.senderId,
-      senderName: record.senderName,
-      senderAvatar: record.senderAvatar,
-      text: record.text,
-      timestamp: new Date(record.created),
-      isUser: record.isUser,
-      image: record.image
-    })) as Message[];
-
-  } catch (error) {
-    console.error("Mesajları getirme hatası:", error);
-    return [];
-  }
-};
-
-export const signOut = () => {
-    pb.authStore.clear();
-};
