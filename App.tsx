@@ -48,6 +48,7 @@ function App() {
     if (!user || targetUser.id === user.id) return;
     const privateRoomId = `private_${[user.id, targetUser.id].sort().join('_')}`;
     const existingTab = openTabs.find(t => t.id === privateRoomId);
+    
     if (existingTab) {
         setActiveTabId(privateRoomId);
     } else {
@@ -106,18 +107,30 @@ function App() {
                   <div className="flex items-center gap-1 border-l border-gray-100 pl-4 overflow-x-auto scrollbar-hide max-w-[40%]">
                       {openTabs.map(tab => {
                           const isActive = activeTabId === tab.id;
+                          const isPrivateRequest = tab.isPrivate && !isActive;
+
                           return (
                               <div 
                                 key={tab.id}
                                 onClick={() => setActiveTabId(tab.id)}
                                 className={`
-                                    group flex items-center gap-2 px-4 py-2 rounded-xl cursor-pointer transition-all border shrink-0
+                                    group flex items-center gap-2 px-4 py-2 rounded-xl cursor-pointer transition-all border shrink-0 relative
                                     ${isActive 
                                         ? 'bg-white border-blue-500 text-blue-600 shadow-sm' 
                                         : 'bg-transparent border-transparent text-gray-400 hover:text-gray-600'}
                                 `}
                               >
-                                  <span className="text-xs font-bold truncate"># {tab.name}</span>
+                                  {isPrivateRequest && (
+                                      <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                          <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                                      </span>
+                                  )}
+                                  
+                                  <span className={`text-xs font-bold truncate ${isPrivateRequest ? 'animate-flash-red' : ''}`}>
+                                      {tab.isPrivate ? '👤' : '#'} {tab.name}
+                                  </span>
+
                                   <button onClick={(e) => handleCloseTab(tab.id, e)} className="p-1 rounded-full opacity-0 group-hover:opacity-100 hover:bg-gray-100">
                                       <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" /></svg>
                                   </button>

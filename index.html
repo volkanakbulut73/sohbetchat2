@@ -40,6 +40,15 @@
       ::-webkit-scrollbar-thumb:hover {
         background: #94a3b8;
       }
+
+      /* Private Chat Request Flash Animation */
+      @keyframes flash-red {
+        0%, 100% { color: #94a3b8; transform: scale(1); }
+        50% { color: #ef4444; transform: scale(1.05); text-shadow: 0 0 8px rgba(239, 68, 68, 0.3); }
+      }
+      .animate-flash-red {
+        animation: flash-red 1s ease-in-out infinite;
+      }
     </style>
   <script type="importmap">
 {

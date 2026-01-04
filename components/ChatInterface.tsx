@@ -19,12 +19,6 @@ interface AiChatModuleProps {
   onUserDoubleClick?: (user: User) => void; 
 }
 
-const EMOJIS = [
-  "😀", "😂", "😉", "😍", "😎", "😭", "😡", "🤔", "👍", "👎", 
-  "🙏", "💪", "❤️", "💔", "🎉", "🔥", "👋", "💋", "🌹", "⭐",
-  "😱", "😴", "🤮", "🤐", "🤯", "👻", "💩", "👀", "🙌", "👏"
-];
-
 const AiChatModule: React.FC<AiChatModuleProps> = ({ 
   currentUser, 
   topic, 
@@ -33,20 +27,17 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   roomId,
   isPrivate = false,
   isBlocked = false,
-  onBlockUser,
-  onUnblockUser,
   onUserDoubleClick
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [displayUsers, setDisplayUsers] = useState<User[]>([]);
+  const [showUserList, setShowUserList] = useState(false); // Mobile sidebar state
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const currentRoomId = roomId || (isPrivate ? `private_${currentUser.id}` : 'general');
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -70,7 +61,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
         } else {
              const greetingText = isPrivate 
                ? `${participants[0]?.name} ile özel sohbet başladı.`
-               : `${currentUser.name} sohbete katıldı.\nKonu: ${topic}`;
+               : `${currentUser.name} sohbete katıldı.`;
 
              const greeting: Message = {
                id: 'system-welcome',
@@ -110,7 +101,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     return () => {
         pb.collection('messages').unsubscribe('*');
     };
-  }, [currentRoomId, currentUser, topic, isPrivate, participants]);
+  }, [currentRoomId, currentUser, isPrivate, participants]);
 
   useEffect(() => {
     const uniqueUsers = new Map<string, User>();
@@ -151,10 +142,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     setSelectedImage(null);
     
     try {
-      // Önce kullanıcının mesajını gönder
       await sendMessageToPb(userMsgPayload, currentRoomId);
-      
-      // Botların cevap vermesi için kısa bir bekleme
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       setIsTyping(true);
@@ -171,7 +159,6 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
           const bot = participants.find((p) => p.id === resp.botId);
           if (bot) {
             setIsTyping(true);
-            // Botun "yazıyor" efekti için mesaj uzunluğuna göre bekleme
             const typingSpeed = Math.min(2000, Math.max(1000, resp.message.length * 30));
             await new Promise(resolve => setTimeout(resolve, typingSpeed));
             setIsTyping(false);
@@ -188,26 +175,35 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
         }
       }
     } catch (err) {
-      console.error("Mesajlaşma döngüsü hatası:", err);
+      console.error("Mesaj hatası:", err);
       setIsTyping(false);
     }
   };
 
-  const UserList = () => (
-    <div className="bg-white h-full overflow-y-auto border-l border-gray-100 flex flex-col w-64 shrink-0">
-        <div className="p-4 bg-white sticky top-0 z-10">
-            <h3 className="text-gray-400 text-[10px] font-bold uppercase tracking-widest text-center">
+  const UserListSidebar = () => (
+    <div className={`
+        fixed md:relative inset-y-0 right-0 z-[60] w-72 bg-white border-l border-gray-100 flex flex-col transition-transform duration-300 transform shadow-2xl md:shadow-none
+        ${showUserList ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
+    `}>
+        <div className="p-4 border-b border-gray-50 flex items-center justify-between">
+            <h3 className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">
                 ÜYELER ({displayUsers.length})
             </h3>
+            <button onClick={() => setShowUserList(false)} className="md:hidden p-2 text-gray-400">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
         </div>
-        <ul className="flex-1 p-2 space-y-1">
+        <ul className="flex-1 overflow-y-auto p-2 space-y-1 overscroll-contain">
             {displayUsers.map(user => (
                 <li 
                     key={user.id}
-                    onDoubleClick={() => onUserDoubleClick && onUserDoubleClick(user)}
+                    onDoubleClick={() => {
+                        onUserDoubleClick && onUserDoubleClick(user);
+                        setShowUserList(false);
+                    }}
                     className={`
                         group flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all
-                        ${user.id === currentUser.id ? 'bg-[#f0f4ff] border border-blue-100' : 'hover:bg-gray-50 border border-transparent'}
+                        ${user.id === currentUser.id ? 'bg-[#f0f4ff]' : 'hover:bg-gray-50'}
                     `}
                 >
                     <div className="relative shrink-0">
@@ -216,9 +212,9 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                     </div>
                     <div className="min-w-0 overflow-hidden">
                         <div className={`text-sm font-bold truncate ${user.id === currentUser.id ? 'text-[#2563eb]' : 'text-slate-700'}`}>
-                            {user.name} {user.id === currentUser.id && '(Sen)'}
+                            {user.name}
                         </div>
-                        <div className="text-[11px] text-gray-400 truncate">
+                        <div className="text-[11px] text-gray-400 truncate uppercase">
                             {user.isBot ? user.role : 'Çevrimiçi'}
                         </div>
                     </div>
@@ -229,14 +225,38 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   );
 
   return (
-    <div className="flex h-full w-full bg-white overflow-hidden">
+    <div className="flex h-full w-full bg-white overflow-hidden relative">
       
+      {/* Overlay for mobile sidebar */}
+      {showUserList && (
+          <div 
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[55] md:hidden" 
+            onClick={() => setShowUserList(false)}
+          />
+      )}
+
       <div className="flex-1 flex flex-col min-w-0 relative h-full">
-         <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-8 space-y-6 bg-[#f8f9fa] relative">
+         
+         {/* Mobile Topic/Header Bar */}
+         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-white/80 backdrop-blur-md z-10">
+             <div className="min-w-0">
+                 <h2 className="text-sm font-bold text-slate-800 truncate">{title || topic}</h2>
+                 <p className="text-[10px] text-gray-400 truncate md:block hidden">{topic}</p>
+             </div>
+             <button 
+                onClick={() => setShowUserList(true)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg text-xs font-bold text-slate-500 hover:bg-gray-100 transition-colors"
+             >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                <span className="hidden sm:inline">Kişiler</span>
+             </button>
+         </div>
+
+         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 bg-[#f8f9fa] overscroll-contain">
             {messages.map((msg, index) => {
                 if (msg.senderId === 'system') return (
-                    <div key={msg.id} className="flex justify-center my-4">
-                        <span className="text-[10px] text-gray-400 bg-white/50 px-3 py-1 rounded-full">{msg.text}</span>
+                    <div key={msg.id} className="flex justify-center my-2">
+                        <span className="text-[10px] text-gray-400 bg-white/50 px-3 py-1 rounded-full border border-gray-100 shadow-sm">{msg.text}</span>
                     </div>
                 );
                 
@@ -244,29 +264,29 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                 const showHeader = index === 0 || messages[index - 1].senderId !== msg.senderId;
 
                 return (
-                    <div key={msg.id} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end group mb-2`}>
-                        <div className="shrink-0 mb-1">
-                            <img src={msg.senderAvatar} className="w-9 h-9 rounded-full shadow-sm bg-gray-200 object-cover border-2 border-white" />
+                    <div key={msg.id} className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end mb-1`}>
+                        <div className="shrink-0">
+                            <img src={msg.senderAvatar} className="w-8 h-8 rounded-full shadow-sm bg-gray-200 object-cover border-2 border-white" />
                         </div>
 
-                        <div className={`flex flex-col max-w-[75%] ${isMe ? 'items-end' : 'items-start'}`}>
+                        <div className={`flex flex-col max-w-[85%] sm:max-w-[70%] ${isMe ? 'items-end' : 'items-start'}`}>
                              {showHeader && (
-                                 <span className="text-[11px] font-bold text-gray-400 mb-1 px-2">
+                                 <span className="text-[10px] font-bold text-gray-400 mb-0.5 px-1 uppercase tracking-tight">
                                      {msg.senderName}
                                  </span>
                              )}
                              
                              <div className={`
-                                 relative px-4 py-2.5 text-[14px] leading-snug shadow-sm
+                                 relative px-3 py-2 text-[14px] leading-relaxed shadow-sm
                                  ${isMe 
-                                     ? 'bg-[#2563eb] text-white rounded-[22px] rounded-br-[4px]' 
-                                     : 'bg-white text-slate-700 rounded-[22px] rounded-bl-[4px] border border-gray-100'}
+                                     ? 'bg-[#2563eb] text-white rounded-[18px] rounded-br-[4px]' 
+                                     : 'bg-white text-slate-700 rounded-[18px] rounded-bl-[4px] border border-gray-100'}
                              `}>
-                                {msg.image && <img src={msg.image} className="max-w-full h-40 object-cover rounded-xl mb-2" />}
+                                {msg.image && <img src={msg.image} className="max-w-full h-auto rounded-lg mb-2 border border-black/5 shadow-sm" />}
                                 <div className="whitespace-pre-wrap break-words">{msg.text}</div>
                              </div>
                              
-                             <div className="text-[9px] text-gray-300 mt-1 px-2">
+                             <div className="text-[9px] text-gray-300 mt-1 px-1">
                                 {msg.timestamp.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
                              </div>
                         </div>
@@ -275,7 +295,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
             })}
             
             {isTyping && (
-                <div className="flex items-center gap-2 ml-12">
+                <div className="flex items-center gap-2 ml-10">
                     <div className="flex space-x-1 bg-white px-3 py-2 rounded-full shadow-sm border border-gray-50">
                         <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"></div>
                         <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce delay-75"></div>
@@ -283,32 +303,29 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                     </div>
                 </div>
             )}
-            <div ref={messagesEndRef} />
+            <div ref={messagesEndRef} className="h-4" />
          </div>
 
-         <div className="bg-white p-4 border-t border-gray-100 shrink-0">
-             <div className="max-w-5xl mx-auto flex items-center gap-3">
-                 <div className="flex-1 bg-[#f0f2f5] rounded-full px-6 py-2 flex items-center gap-3 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all">
-                     <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="text-gray-400 hover:text-blue-500 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                     </button>
+         <div className="bg-white p-3 md:p-4 border-t border-gray-100">
+             <div className="max-w-4xl mx-auto flex items-center gap-2">
+                 <div className="flex-1 bg-gray-100 rounded-full px-4 py-1.5 flex items-center gap-2 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all border border-transparent focus-within:border-blue-200">
                      <form onSubmit={handleSendMessage} className="flex-1">
                          <input 
                             ref={inputRef}
                             value={inputText}
                             onChange={e => setInputText(e.target.value)}
-                            className="w-full bg-transparent text-sm text-slate-700 outline-none py-2"
-                            placeholder="Bir şeyler yaz..."
+                            className="w-full bg-transparent text-sm text-slate-700 outline-none py-1"
+                            placeholder="Mesaj yazın..."
                          />
                      </form>
                  </div>
 
                  <button 
                     onClick={() => handleSendMessage()}
-                    disabled={!inputText.trim() || isBlocked}
-                    className="w-12 h-12 rounded-full bg-[#f0f2f5] hover:bg-blue-600 text-gray-400 hover:text-white flex items-center justify-center transition-all shadow-sm transform active:scale-95"
+                    disabled={!inputText.trim() && !selectedImage}
+                    className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center transition-all shadow-md transform active:scale-95 disabled:opacity-50 disabled:bg-gray-400"
                  >
-                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 rotate-90" viewBox="0 0 20 20" fill="currentColor">
+                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
                      </svg>
                  </button>
@@ -316,7 +333,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
          </div>
       </div>
 
-      <UserList />
+      <UserListSidebar />
 
     </div>
   );
