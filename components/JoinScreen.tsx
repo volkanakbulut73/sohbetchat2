@@ -12,6 +12,7 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
   const [selectedRoomId, setSelectedRoomId] = useState(ROOMS[0].id);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showHttpFix, setShowHttpFix] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,6 +20,7 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
     
     setIsLoading(true);
     setError(null);
+    setShowHttpFix(false);
 
     try {
         const userRecord = await loginOrRegister(name);
@@ -40,10 +42,24 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
         }
     } catch (err: any) {
         console.error(err);
-        setError("Giriş yapılamadı. PocketBase sunucusu ile iletişim kurulamadı. Eğer siteniz HTTPS ise, adres çubuğundan HTTP yaparak tekrar deneyin (Mixed Content hatası).");
+        
+        // Hata durumunda protokol kontrolü yap
+        const isHttps = window.location.protocol === 'https:';
+        
+        if (isHttps) {
+            setError("Güvenlik Hatası: HTTPS üzerinden HTTP sunucusuna bağlanılamıyor.");
+            setShowHttpFix(true);
+        } else {
+            setError("Giriş yapılamadı. Sunucu kapalı veya erişilemiyor olabilir.");
+        }
     } finally {
         setIsLoading(false);
     }
+  };
+
+  const handleSwitchToHttp = () => {
+      const httpUrl = window.location.href.replace('https:', 'http:');
+      window.location.href = httpUrl;
   };
 
   const getOnlineCount = (roomId: string) => {
@@ -65,8 +81,17 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
         </div>
 
         {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg mb-4 text-sm">
-                {error}
+            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg mb-4 text-sm flex flex-col gap-2">
+                <p>{error}</p>
+                {showHttpFix && (
+                    <button 
+                        type="button"
+                        onClick={handleSwitchToHttp}
+                        className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition-colors text-xs w-full"
+                    >
+                        Sorunu Çöz (HTTP Moduna Geç)
+                    </button>
+                )}
             </div>
         )}
 
