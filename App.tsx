@@ -2,9 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import JoinScreen from './components/JoinScreen.tsx';
 import AiChatModule from './components/ChatInterface.tsx';
-import { User, ChatRoom } from './types.ts';
+import { User, ChatRoom, BannedUser } from './types.ts';
 import { ROOMS } from './constants.ts';
-import { pb, signOut } from './services/pocketbase.ts';
+import { pb, signOut, getBanList, unbanUser, resetUserStatus } from './services/pocketbase.ts';
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -17,26 +17,61 @@ function App() {
   const [allowDms, setAllowDms] = useState(true);
   const [blockedUsers, setBlockedUsers] = useState<Set<string>>(new Set());
 
-  // Global Realtime Subscription for incoming messages
+  // Admin States
+  const [showBanList, setShowBanList] = useState(false);
+  const [bannedUsers, setBannedUsers] = useState<BannedUser[]>([]);
+
+  // 1. GLOBAL GÜVENLİK DİNLEYİCİSİ (KICK / BAN)
   useEffect(() => {
     if (!user) return;
 
-    // Subscribe to all messages to catch private ones
+    // Login olunca statusu temizle (Kicked flag'ini)
+    resetUserStatus(user.id);
+
+    // Kendi user kaydımızı dinle
+    const unsubscribe = pb.collection('users').subscribe(user.id, (e) => {
+        if (e.action === 'update' || e.action === 'delete') {
+            const record = e.record;
+            
+            // Eğer silindiysek
+            if (e.action === 'delete') {
+                alert("Hesabınız silindi.");
+                handleLogout();
+                return;
+            }
+
+            // Eğer atıldıysak (Kick)
+            if (record.kicked) {
+                alert("Yönetici tarafından odadan atıldınız.");
+                handleLogout(); // Anasayfaya at
+                return;
+            }
+
+            // Eğer yetkilerimiz değiştiyse (Admin/Op) state'i güncelle
+            if (record.isAdmin !== user.isAdmin || record.isOp !== user.isOp) {
+                setUser(prev => prev ? { ...prev, isAdmin: record.isAdmin, isOp: record.isOp } : null);
+            }
+        }
+    });
+
+    return () => {
+        pb.collection('users').unsubscribe(user.id);
+    };
+  }, [user?.id]); // User ID değişirse yeniden kur
+
+  // 2. MESAJ DİNLEYİCİSİ
+  useEffect(() => {
+    if (!user) return;
+
     const unsubscribe = pb.collection('messages').subscribe('*', (e) => {
       if (e.action === 'create') {
         const msg = e.record;
         
-        // Check if it's a private message for ME (room ID contains my ID and is private)
         if (msg.room.startsWith('private_') && msg.room.includes(user.id)) {
-          // If I am NOT the sender
           if (msg.senderId !== user.id) {
             
-            // 1. Check if Blocked
             if (blockedUsers.has(msg.senderId)) return;
 
-            // 2. Check if DMs are allowed
-            // Note: If the tab is ALREADY open, we allow the message through even if DMs are off globally, 
-            // otherwise the conversation freezes. Use allowDms primarily to stop NEW tabs.
             const tabExists = openTabs.find(t => t.id === msg.room);
 
             if (!tabExists && !allowDms) return;
@@ -44,10 +79,9 @@ function App() {
             setOpenTabs(prev => {
               const exists = prev.find(t => t.id === msg.room);
               if (!exists) {
-                // Automatically create the tab for the recipient
                 const newPrivateRoom: ChatRoom = {
                   id: msg.room,
-                  name: msg.senderName, // Name is the sender's name
+                  name: msg.senderName, 
                   topic: 'Özel Sohbet',
                   description: `${msg.senderName} ile özel sohbet`,
                   participants: [{
@@ -63,7 +97,6 @@ function App() {
               return prev;
             });
 
-            // If the room is not currently active, mark as unread (flash red)
             if (activeTabId !== msg.room) {
               setUnreadRoomIds(prev => new Set(prev).add(msg.room));
             }
@@ -75,7 +108,7 @@ function App() {
     return () => {
       pb.collection('messages').unsubscribe('*');
     };
-  }, [user, activeTabId, allowDms, blockedUsers, openTabs]); // Added dependencies
+  }, [user, activeTabId, allowDms, blockedUsers, openTabs]); 
 
   // Clear unread status when switching tabs
   useEffect(() => {
@@ -125,18 +158,17 @@ function App() {
     setActiveTabId(null);
     setUnreadRoomIds(new Set());
     setBlockedUsers(new Set());
+    setShowBanList(false);
   };
 
   const handleUserDoubleClick = (targetUser: User) => {
     if (!user || targetUser.id === user.id) return;
     
-    // Check blocking before opening
     if (blockedUsers.has(targetUser.id)) {
         alert("Bu kullanıcıyı engellediniz.");
         return;
     }
 
-    // Common private room ID pattern
     const privateRoomId = `private_${[user.id, targetUser.id].sort().join('_')}`;
     const existingTab = openTabs.find(t => t.id === privateRoomId);
     
@@ -158,9 +190,6 @@ function App() {
 
   const handleBlockUser = (userId: string) => {
     setBlockedUsers(prev => new Set(prev).add(userId));
-    // Opsiyonel: Engellenen kişiyle olan açık sekmeyi kapatabiliriz
-    // const tabToClose = openTabs.find(t => t.isPrivate && t.participants.some(p => p.id === userId));
-    // if(tabToClose) handleCloseTab(tabToClose.id, { stopPropagation: () => {} } as any);
   };
 
   const handleUnblockUser = (userId: string) => {
@@ -171,17 +200,30 @@ function App() {
     });
   };
 
+  // ADMIN FONKSİYONLARI
+  const openBanList = async () => {
+      if(!user?.isAdmin) return;
+      const list = await getBanList();
+      setBannedUsers(list);
+      setShowBanList(true);
+  };
+
+  const handleRemoveBan = async (banId: string) => {
+      if(!user?.isAdmin) return;
+      if(confirm("Yasağı kaldırmak istediğinize emin misiniz?")) {
+          await unbanUser(banId);
+          setBannedUsers(prev => prev.filter(b => b.id !== banId));
+      }
+  };
+
   if (!user) return <JoinScreen onJoin={handleJoin} />;
 
   const activeRoom = openTabs.find(t => t.id === activeTabId);
   
-  // Find the other user in a private chat to determine block status
   let isOtherUserBlocked = false;
   let otherUserId = "";
   
   if (activeRoom?.isPrivate && activeRoom.participants.length > 0) {
-      // In private chat, the participant list usually contains the other person
-      // Or we can parse the room ID, but using participants is safer if set correctly
       const otherUser = activeRoom.participants.find(p => p.id !== user.id);
       if (otherUser) {
           otherUserId = otherUser.id;
@@ -209,7 +251,6 @@ function App() {
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" /></svg>
                   </button>
 
-                  {/* DM Toggle Button */}
                   <button
                     onClick={() => setAllowDms(!allowDms)}
                     title={allowDms ? "Özel Mesajlar Açık" : "Özel Mesajlar Kapalı"}
@@ -221,6 +262,16 @@ function App() {
                          <><span>🔒</span><span className="hidden sm:inline">DM Kapalı</span></>
                      )}
                   </button>
+
+                  {/* ADMIN BAN LIST BUTONU */}
+                  {user.isAdmin && (
+                      <button
+                        onClick={openBanList}
+                        className="flex items-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-all font-bold text-xs shadow-md shadow-red-200"
+                      >
+                         <span>🛡️</span> <span className="hidden sm:inline">Ban Listesi</span>
+                      </button>
+                  )}
 
                   {showChannelList && (
                       <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-gray-100 py-2 z-[100]">
@@ -271,7 +322,6 @@ function App() {
                       })}
                   </div>
 
-                  {/* Radio Player */}
                   <div className="hidden lg:flex items-center justify-center border-l border-gray-100 pl-4 overflow-hidden shrink-0">
                     <div className="bg-[#f0f2f5] rounded-xl p-1 shadow-sm border border-gray-100 overflow-hidden flex items-center">
                       <iframe 
@@ -293,7 +343,11 @@ function App() {
               <div className="flex items-center gap-2 bg-[#f0f2f5] px-2 py-1 md:px-3 md:py-1.5 rounded-full">
                   <img src={user.avatar} className="w-6 h-6 md:w-7 md:h-7 rounded-full border border-white" />
                   <div className="pr-1 text-right hidden sm:block">
-                      <p className="text-[10px] md:text-[11px] font-bold text-slate-700 leading-tight truncate max-w-[80px]">{user.name}</p>
+                      <p className="text-[10px] md:text-[11px] font-bold text-slate-700 leading-tight truncate max-w-[80px]">
+                        {user.isAdmin && <span className="text-red-500 mr-1">🛡️</span>}
+                        {user.isOp && !user.isAdmin && <span className="text-blue-500 mr-1">⚡</span>}
+                        {user.name}
+                      </p>
                       <p className="text-[8px] md:text-[9px] text-green-500 font-bold leading-tight">● Çevrimiçi</p>
                   </div>
               </div>
@@ -316,7 +370,6 @@ function App() {
                 isPrivate={activeRoom.isPrivate}
                 onUserDoubleClick={handleUserDoubleClick}
                 
-                // Props for blocking
                 isBlocked={isOtherUserBlocked}
                 onBlockUser={() => otherUserId && handleBlockUser(otherUserId)}
                 onUnblockUser={() => otherUserId && handleUnblockUser(otherUserId)}
@@ -328,6 +381,44 @@ function App() {
              </div>
           )}
       </div>
+
+      {/* BAN LIST MODAL (ONLY ADMIN) */}
+      {showBanList && user.isAdmin && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowBanList(false)}></div>
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative z-10 overflow-hidden flex flex-col max-h-[80vh]">
+                  <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+                      <h3 className="font-black text-slate-800 flex items-center gap-2">
+                          <span className="text-red-500">🚫</span> YASAKLI KULLANICILAR
+                      </h3>
+                      <button onClick={() => setShowBanList(false)} className="text-gray-400 hover:text-red-500 text-xl font-bold">✕</button>
+                  </div>
+                  <div className="p-6 overflow-y-auto">
+                      {bannedUsers.length === 0 ? (
+                          <div className="text-center text-gray-400 py-8">Yasaklı kullanıcı bulunmamaktadır.</div>
+                      ) : (
+                          <div className="space-y-3">
+                              {bannedUsers.map(b => (
+                                  <div key={b.id} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50">
+                                      <div>
+                                          <p className="text-sm font-bold text-slate-700">{b.email}</p>
+                                          <p className="text-xs text-gray-400">{new Date(b.created).toLocaleString()}</p>
+                                      </div>
+                                      <button 
+                                        onClick={() => handleRemoveBan(b.id)}
+                                        className="text-xs font-bold text-green-600 bg-green-50 px-3 py-1.5 rounded-lg hover:bg-green-100 transition-colors"
+                                      >
+                                          Yasağı Kaldır
+                                      </button>
+                                  </div>
+                              ))}
+                          </div>
+                      )}
+                  </div>
+              </div>
+          </div>
+      )}
+
     </div>
   );
 }

@@ -4,7 +4,9 @@ export interface User {
   name: string;
   avatar: string;
   isBot: boolean;
-  role?: string; // e.g., "Philosopher", "Comedian"
+  role?: string; 
+  isAdmin?: boolean; // Süper Yönetici
+  isOp?: boolean;    // Operatör (Kısıtlı yetki)
 }
 
 export interface Message {
@@ -25,10 +27,17 @@ export interface ChatRoom {
   topic: string;
   participants: User[];
   description: string;
-  isPrivate?: boolean; // Yeni eklenen alan
+  isPrivate?: boolean;
 }
 
-// Response from Gemini structure
+// Banned User Structure
+export interface BannedUser {
+  id: string;
+  email: string; // Banlanan email veya ID
+  reason?: string;
+  created: string;
+}
+
 export interface BotResponseItem {
   botId: string;
   message: string;

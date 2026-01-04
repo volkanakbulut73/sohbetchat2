@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { ROOMS } from '../constants.ts';
 import { ChatRoom } from '../types.ts';
@@ -11,6 +12,7 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
   // Auth Modal State
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isLoginMode, setIsLoginMode] = useState(true);
+  const [isAdminLogin, setIsAdminLogin] = useState(false); // Admin girişi mi?
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -46,6 +48,14 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
                 avatar: avatarUrl,
                 isBot: false
             };
+            
+            // Eğer yönetici girişinden geldiyse ve kullanıcı admin değilse uyar (Opsiyonel UX)
+            if (isAdminLogin && !userRecord.isAdmin) {
+                // Burada giriş engellenmiyor, sadece görsel bir uyarı verilebilir veya
+                // direkt normal kullanıcı gibi devam eder.
+                // Biz kullanıcıyı içeri alıyoruz, App.tsx zaten yetkileri kontrol ediyor.
+            }
+
             onJoin(appUser, room);
         }
 
@@ -54,6 +64,17 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
     } finally {
         setIsLoading(false);
     }
+  };
+
+  const handleAdminLoginClick = () => {
+      setIsAdminLogin(true);
+      setIsLoginMode(true);
+      setShowAuthModal(true);
+  };
+
+  const handleCloseModal = () => {
+      setShowAuthModal(false);
+      setIsAdminLogin(false); // Reset
   };
 
   return (
@@ -85,14 +106,14 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
 
               <div className="flex flex-col sm:flex-row gap-6 w-full max-w-lg">
                   <button 
-                    onClick={() => setShowAuthModal(true)}
+                    onClick={() => { setIsAdminLogin(false); setIsLoginMode(true); setShowAuthModal(true); }}
                     className="flex-1 bg-[#00ff9d] text-black font-black py-5 rounded-lg flex items-center justify-center gap-3 hover:bg-[#05e58d] transition-all transform hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(0,255,157,0.3)]"
                   >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                       GİRİŞ YAP
                   </button>
                   <button 
-                    onClick={() => { setIsLoginMode(false); setShowAuthModal(true); }}
+                    onClick={() => { setIsAdminLogin(false); setIsLoginMode(false); setShowAuthModal(true); }}
                     className="flex-1 border-2 border-[#00ff9d] text-[#00ff9d] font-black py-5 rounded-lg flex items-center justify-center gap-3 hover:bg-[#00ff9d]/5 transition-all"
                   >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
@@ -252,7 +273,7 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
               <div className="text-xs tracking-[0.5em] text-gray-500 font-bold mb-16 uppercase">W O R K I G O M C H A T . O N L I N E</div>
               
               <div className="flex flex-col sm:flex-row gap-6 justify-center">
-                  <button onClick={() => { setIsLoginMode(false); setShowAuthModal(true); }} className="px-10 py-5 bg-[#00ff9d] text-black font-black rounded-lg hover:scale-105 transition-all shadow-lg shadow-[#00ff9d]/20 uppercase tracking-widest text-sm flex items-center justify-center gap-3">
+                  <button onClick={() => { setIsAdminLogin(false); setIsLoginMode(false); setShowAuthModal(true); }} className="px-10 py-5 bg-[#00ff9d] text-black font-black rounded-lg hover:scale-105 transition-all shadow-lg shadow-[#00ff9d]/20 uppercase tracking-widest text-sm flex items-center justify-center gap-3">
                       <span>🔐</span> BAŞVUR VE KATIL
                   </button>
                   <button className="px-10 py-5 border border-white/10 text-gray-400 font-bold rounded-lg hover:bg-white/5 transition-all uppercase tracking-widest text-sm flex items-center justify-center gap-3">
@@ -269,7 +290,12 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
                   W O R K I G O M &nbsp; N E T W O R K &nbsp; S Y S T E M &nbsp; © &nbsp; 2 0 2 4
               </div>
               <div className="flex gap-8 text-[10px] font-black tracking-widest text-gray-400 uppercase">
-                  <button className="hover:text-[#00ff9d] transition-colors">⚙️ YÖNETİCİ GİRİŞİ</button>
+                  <button 
+                    onClick={handleAdminLoginClick}
+                    className="hover:text-[#00ff9d] transition-colors"
+                  >
+                      ⚙️ YÖNETİCİ GİRİŞİ
+                  </button>
                   <button className="hover:text-[#00ff9d] transition-colors">DESTEK</button>
                   <button className="hover:text-[#00ff9d] transition-colors">KVKK</button>
               </div>
@@ -279,15 +305,20 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
       {/* AUTH MODAL */}
       {showAuthModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-              <div className="absolute inset-0 bg-black/80 backdrop-blur-xl" onClick={() => setShowAuthModal(false)}></div>
+              <div className="absolute inset-0 bg-black/80 backdrop-blur-xl" onClick={handleCloseModal}></div>
               
-              <div className="bg-[#111114] border border-white/10 w-full max-w-md rounded-2xl p-8 relative z-10 shadow-3xl">
-                  <button onClick={() => setShowAuthModal(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
+              <div className={`bg-[#111114] border w-full max-w-md rounded-2xl p-8 relative z-10 shadow-3xl ${isAdminLogin ? 'border-red-500/50 shadow-red-900/20' : 'border-white/10'}`}>
+                  <button onClick={handleCloseModal} className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                   </button>
 
-                  <h3 className="text-2xl font-black mb-2 italic uppercase">{isLoginMode ? 'Giriş Yap' : 'Hesap Oluştur'}</h3>
-                  <p className="text-gray-500 text-sm mb-8 font-medium">Workigom güvenli bölgesine erişim sağlayın.</p>
+                  <h3 className={`text-2xl font-black mb-2 italic uppercase ${isAdminLogin ? 'text-red-500' : 'text-white'}`}>
+                    {isAdminLogin ? 'YÖNETİCİ GİRİŞİ' : (isLoginMode ? 'Giriş Yap' : 'Hesap Oluştur')}
+                  </h3>
+                  
+                  <p className="text-gray-500 text-sm mb-8 font-medium">
+                    {isAdminLogin ? 'Lütfen yetkili yönetici hesabınızla giriş yapın.' : 'Workigom güvenli bölgesine erişim sağlayın.'}
+                  </p>
 
                   {error && (
                       <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-xl mb-6 text-xs font-bold uppercase tracking-widest">
@@ -316,8 +347,8 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
                               type="email" 
                               value={email}
                               onChange={(e) => setEmail(e.target.value)}
-                              className="w-full bg-[#1a1a1e] border border-white/5 focus:border-[#00ff9d] rounded-xl px-4 py-4 outline-none transition-all text-sm font-bold text-white placeholder:text-gray-700"
-                              placeholder="mail@workigom.com"
+                              className={`w-full bg-[#1a1a1e] border border-white/5 rounded-xl px-4 py-4 outline-none transition-all text-sm font-bold text-white placeholder:text-gray-700 ${isAdminLogin ? 'focus:border-red-500' : 'focus:border-[#00ff9d]'}`}
+                              placeholder={isAdminLogin ? "admin@workigom.com" : "mail@workigom.com"}
                               required
                           />
                       </div>
@@ -328,40 +359,55 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
                               type="password"
                               value={password}
                               onChange={(e) => setPassword(e.target.value)} 
-                              className="w-full bg-[#1a1a1e] border border-white/5 focus:border-[#00ff9d] rounded-xl px-4 py-4 outline-none transition-all text-sm font-bold text-white placeholder:text-gray-700"
+                              className={`w-full bg-[#1a1a1e] border border-white/5 rounded-xl px-4 py-4 outline-none transition-all text-sm font-bold text-white placeholder:text-gray-700 ${isAdminLogin ? 'focus:border-red-500' : 'focus:border-[#00ff9d]'}`}
                               placeholder="••••••••"
                               required
                           />
                       </div>
 
-                      <div className="space-y-1.5">
-                           <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Oda Seçimi</label>
-                           <select 
-                                value={selectedRoomId}
-                                onChange={(e) => setSelectedRoomId(e.target.value)}
-                                className="w-full bg-[#1a1a1e] border border-white/5 focus:border-[#00ff9d] rounded-xl px-4 py-4 outline-none transition-all text-sm font-bold text-white appearance-none"
-                           >
-                               {ROOMS.map(room => <option key={room.id} value={room.id}>{room.name}</option>)}
-                           </select>
-                      </div>
+                      {!isAdminLogin && (
+                        <div className="space-y-1.5">
+                             <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Oda Seçimi</label>
+                             <select 
+                                  value={selectedRoomId}
+                                  onChange={(e) => setSelectedRoomId(e.target.value)}
+                                  className="w-full bg-[#1a1a1e] border border-white/5 focus:border-[#00ff9d] rounded-xl px-4 py-4 outline-none transition-all text-sm font-bold text-white appearance-none"
+                             >
+                                 {ROOMS.map(room => <option key={room.id} value={room.id}>{room.name}</option>)}
+                             </select>
+                        </div>
+                      )}
 
                       <button 
                           type="submit" 
                           disabled={isLoading}
-                          className="w-full py-5 bg-[#00ff9d] text-black font-black rounded-xl shadow-lg shadow-[#00ff9d]/10 hover:bg-[#05e58d] transition-all transform active:scale-95 disabled:opacity-50 mt-4 uppercase tracking-widest text-xs"
+                          className={`w-full py-5 text-black font-black rounded-xl shadow-lg transition-all transform active:scale-95 disabled:opacity-50 mt-4 uppercase tracking-widest text-xs ${isAdminLogin ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-900/30' : 'bg-[#00ff9d] hover:bg-[#05e58d] shadow-[#00ff9d]/10'}`}
                       >
-                          {isLoading ? 'Doğrulanıyor...' : (isLoginMode ? 'Sisteme Bağlan' : 'Başvuruyu Tamamla')}
+                          {isLoading ? 'Doğrulanıyor...' : (isAdminLogin ? 'Yönetici Girişi Yap' : (isLoginMode ? 'Sisteme Bağlan' : 'Başvuruyu Tamamla'))}
                       </button>
                   </form>
 
-                  <div className="mt-8 text-center">
-                      <button 
-                          onClick={() => { setIsLoginMode(!isLoginMode); setError(null); }}
-                          className="text-gray-500 hover:text-[#00ff9d] font-bold text-xs uppercase tracking-widest transition-colors"
-                      >
-                          {isLoginMode ? 'Kayıtlı değil misin? BAŞVUR' : 'Zaten kayıtlı mısın? GİRİŞ YAP'}
-                      </button>
-                  </div>
+                  {!isAdminLogin && (
+                    <div className="mt-8 text-center">
+                        <button 
+                            onClick={() => { setIsLoginMode(!isLoginMode); setError(null); }}
+                            className="text-gray-500 hover:text-[#00ff9d] font-bold text-xs uppercase tracking-widest transition-colors"
+                        >
+                            {isLoginMode ? 'Kayıtlı değil misin? BAŞVUR' : 'Zaten kayıtlı mısın? GİRİŞ YAP'}
+                        </button>
+                    </div>
+                  )}
+                  
+                  {isAdminLogin && (
+                      <div className="mt-8 text-center">
+                          <button 
+                            onClick={() => { setIsAdminLogin(false); setIsLoginMode(true); setError(null); }}
+                            className="text-gray-500 hover:text-white font-bold text-xs uppercase tracking-widest transition-colors"
+                          >
+                              ← Kullanıcı Girişine Dön
+                          </button>
+                      </div>
+                  )}
               </div>
           </div>
       )}
