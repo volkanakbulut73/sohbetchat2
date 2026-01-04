@@ -17,9 +17,12 @@
               mono: ['"JetBrains Mono"', 'monospace'],
             },
             colors: {
-              primary: '#6366f1', // Indigo
-              secondary: '#a855f7', // Purple
-              bgLight: '#f3f4f6', // Light gray background
+              workigom: {
+                dark: '#0a0a0c',
+                green: '#00ff9d',
+                greenMuted: 'rgba(0, 255, 157, 0.1)',
+                border: '#1a1a1e'
+              }
             }
           }
         }
@@ -32,23 +35,44 @@
         width: 100%;
         margin: 0;
         padding: 0;
-        overflow: hidden; /* Prevent body bounce */
-        position: fixed; /* Lock body movement on mobile */
+      }
+
+      body {
+        background-color: #0a0a0c;
+        overflow-y: auto !important; /* Allow landing page scrolling */
+        position: relative !important; /* Undo previous fixed position for landing */
+      }
+
+      /* Neon Glow Effect */
+      .neon-glow {
+        text-shadow: 0 0 15px rgba(0, 255, 157, 0.6), 0 0 30px rgba(0, 255, 157, 0.3);
+      }
+      
+      .neon-border {
+        box-shadow: 0 0 10px rgba(0, 255, 157, 0.2);
       }
 
       /* Custom scrollbar */
       ::-webkit-scrollbar {
-        width: 4px;
+        width: 6px;
       }
       ::-webkit-scrollbar-track {
-        background: transparent;
+        background: #0a0a0c;
       }
       ::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
+        background: #333;
         border-radius: 10px;
       }
 
-      /* Private Chat Request Flash Animation */
+      /* Animations */
+      @keyframes pulse-green {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+      .animate-pulse-green {
+        animation: pulse-green 2s infinite;
+      }
+
       @keyframes flash-red {
         0%, 100% { color: #94a3b8; transform: scale(1); }
         50% { color: #ef4444; transform: scale(1.05); text-shadow: 0 0 8px rgba(239, 68, 68, 0.3); }
@@ -56,28 +80,20 @@
       .animate-flash-red {
         animation: flash-red 1s ease-in-out infinite;
       }
-
-      /* Force scrolling to be smooth and enabled for children */
-      .scroll-container {
-        -webkit-overflow-scrolling: touch;
-        overflow-y: auto;
-      }
     </style>
-  <script type="importmap">
+<script type="importmap">
 {
   "imports": {
-    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
-    "pocketbase": "https://esm.sh/pocketbase@^0.21.1",
-    "react-dom/client": "https://esm.sh/react-dom@^19.2.3/client",
-    "react-dom": "https://esm.sh/react-dom@^19.2.3",
     "react/": "https://esm.sh/react@^19.2.3/",
     "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "pocketbase": "https://esm.sh/pocketbase@^0.26.5"
   }
 }
 </script>
 </head>
-  <body class="bg-gray-50 text-slate-800 antialiased font-sans">
+  <body class="bg-workigom-dark text-slate-100 antialiased font-sans">
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
   </body>
