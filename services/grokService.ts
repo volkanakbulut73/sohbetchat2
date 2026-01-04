@@ -2,13 +2,19 @@
 import { GoogleGenAI } from "@google/genai";
 import { Message } from '../types.ts';
 
-// Sokrates karmaşık mantık gerektirdiği için Gemini Pro kullanıyoruz
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export const generateSocratesResponse = async (
   messages: Message[],
   userName: string
 ): Promise<string> => {
+  // BAŞLATMA İŞLEMİ BURAYA TAŞINDI
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    console.warn("Google GenAI API Key bulunamadı. Sokrates cevap veremeyecek.");
+    return "Zihnim şu an biraz bulanık...";
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+
   const recentMessages = messages.slice(-10);
   const historyText = recentMessages.map(m => `${m.senderName}: ${m.text}`).join('\n');
 

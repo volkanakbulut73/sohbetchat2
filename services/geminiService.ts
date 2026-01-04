@@ -2,18 +2,23 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Message, User, BotResponseItem } from '../types.ts';
 
-// API Key process.env üzerinden alınır
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export const generateGroupResponse = async (
   messages: Message[],
   participants: User[],
   topic: string,
   user_name: string
 ): Promise<BotResponseItem[]> => {
-  // Sadece botları filtrele (Sokrates hariç, onun kendi servisi var ama buraya da dahil edebiliriz duruma göre)
-  // Logic: Sokrates chatInterface'de ayrı handle ediliyor, ama grup dinamiği için burada da farkındalık yaratabiliriz.
-  // Şimdilik standart botları alalım.
+  // BAŞLATMA İŞLEMİ BURAYA TAŞINDI
+  // Eğer process.env.API_KEY yoksa uygulama çökmez, sadece bu fonksiyon erken döner.
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    console.warn("Google GenAI API Key bulunamadı. Botlar cevap veremeyecek.");
+    return [];
+  }
+  
+  const ai = new GoogleGenAI({ apiKey });
+
+  // Sadece botları filtrele
   const bots = participants.filter(p => p.isBot);
   
   if (bots.length === 0) return [];
