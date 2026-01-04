@@ -1,8 +1,9 @@
 import PocketBase from 'pocketbase';
 import { Message } from '../types';
 
-// Kullanıcının sağladığı canlı sunucu adresi
-const PB_URL = 'http://72.62.178.90:8090';
+// Kullanıcının sağladığı canlı sunucu adresi (HTTPS)
+// Mixed Content hatasını önlemek için güvenli domain kullanılıyor.
+const PB_URL = 'https://api.workigomchat.online';
 
 export const pb = new PocketBase(PB_URL);
 
@@ -20,9 +21,6 @@ export const loginOrRegister = async (username: string) => {
   } catch (loginError) {
     try {
       // Giriş başarısızsa kullanıcı oluştur
-      // Not: 'avatar' alanını varsayılan 'users' koleksiyonunda genellikle 'file' tipindedir.
-      // String URL gönderirsek hata alabiliriz, bu yüzden avatarı burada set etmiyoruz.
-      // Arayüzde (JoinScreen) kullanıcı adı bazlı rastgele avatar gösteriyoruz.
       const userPayload = {
         username: username.toLowerCase().replace(/\s+/g, '').substring(0, 15) + Math.floor(Math.random() * 1000),
         email: email,

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Component, ReactNode, ErrorInfo } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 
@@ -7,17 +7,26 @@ if (!rootElement) {
   throw new Error("Could not find root element to mount to");
 }
 
-class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: Error | null}> {
-  constructor(props: any) {
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
   }
 
-  static getDerivedStateFromError(error: Error) {
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: any) {
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
   }
 

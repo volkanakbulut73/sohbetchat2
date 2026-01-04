@@ -47,7 +47,7 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
         const isHttps = window.location.protocol === 'https:';
         
         if (isHttps) {
-            setError("Güvenlik Hatası: HTTPS üzerinden HTTP sunucusuna bağlanılamıyor.");
+            setError("Sunucuya bağlanılamadı. HTTPS/HTTP çakışması olabilir.");
             setShowHttpFix(true);
         } else {
             setError("Giriş yapılamadı. Sunucu kapalı veya erişilemiyor olabilir.");
