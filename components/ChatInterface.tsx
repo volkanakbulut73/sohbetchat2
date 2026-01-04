@@ -14,7 +14,12 @@ interface AiChatModuleProps {
   onUserDoubleClick?: (user: User) => void; 
 }
 
-const EMOJIS = ['😊', '😂', '👍', '🔥', '❤️', '👏', '😮', '😢', '🙌', '✨', '🤔', '😎', '🚀', '✅', '❌'];
+const EMOJIS = [
+  '😊', '😂', '🤣', '❤️', '😍', '👍', '🙌', '👏', '🔥', '✨',
+  '🤔', '😎', '😢', '😮', '😡', '🙏', '💯', '🚀', '✅', '❌',
+  '👀', '🎉', '🌟', '💪', '🍦', '🍕', '🌍', '🎮', '💡', '🎵',
+  '🌈', '⚡', '🌙', '🎨', '💼', '⏰', '📌', '🎁', '🎈', '💬'
+];
 
 const AiChatModule: React.FC<AiChatModuleProps> = ({ 
   currentUser, 
@@ -229,7 +234,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                 ÜYELER <span className="hidden sm:inline">({displayUsers.length})</span>
             </h3>
         </div>
-        <div className="flex-1 overflow-y-auto p-1 sm:p-2 space-y-1 touch-auto scroll-smooth">
+        <div className="flex-1 overflow-y-auto p-1 sm:p-2 space-y-1 touch-auto scroll-smooth text-center">
             {displayUsers.map(user => (
                 <div 
                     key={user.id}
@@ -243,12 +248,12 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                         <img src={user.avatar} className="w-10 h-10 rounded-full bg-gray-100 object-cover shadow-sm" />
                         <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${user.isBot ? 'bg-blue-400' : 'bg-green-400'}`}></div>
                     </div>
-                    <div className={`sm:hidden w-1.5 h-1.5 shrink-0 rounded-full ${user.isBot ? 'bg-blue-400' : 'bg-green-400'}`}></div>
-                    <div className="min-w-0 overflow-hidden text-center sm:text-left">
+                    <div className={`sm:hidden w-1.5 h-1.5 mx-auto shrink-0 rounded-full ${user.isBot ? 'bg-blue-400' : 'bg-green-400'}`}></div>
+                    <div className="min-w-0 overflow-hidden text-center sm:text-left flex-1 sm:flex-none">
                         <div className={`text-[10px] sm:text-sm font-bold truncate ${user.id === currentUser.id ? 'text-blue-600' : 'text-slate-700'}`}>
                             {user.name}
                         </div>
-                        <div className="text-[8px] sm:text-[11px] text-gray-400 truncate uppercase">
+                        <div className="text-[8px] sm:text-[11px] text-gray-400 truncate uppercase hidden sm:block">
                             {user.isBot ? (user.role?.split(' ')[0] || 'Bot') : 'Aktif'}
                         </div>
                     </div>
@@ -320,65 +325,85 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
          </div>
 
          <div className="bg-white border-t border-gray-100 shrink-0 relative">
-             {/* Toolbar */}
-             <div className="flex items-center gap-1 px-3 py-1 border-b border-gray-50">
-                <button 
-                  onMouseDown={(e) => { e.preventDefault(); insertFormat('**'); }}
-                  className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-slate-600 font-bold text-xs"
-                >B</button>
-                <button 
-                  onMouseDown={(e) => { e.preventDefault(); insertFormat('_'); }}
-                  className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-slate-600 italic text-xs"
-                >I</button>
-                <button 
-                  onMouseDown={(e) => { e.preventDefault(); insertFormat('<u>', '</u>'); }}
-                  className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-slate-600 underline text-xs"
-                >U</button>
-                <div className="w-px h-4 bg-gray-200 mx-1"></div>
-                <div className="relative">
-                    <button 
-                      onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                      className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-slate-600 text-sm"
-                    >😊</button>
-                    {showEmojiPicker && (
-                        <div className="absolute bottom-full mb-2 left-0 bg-white border border-gray-200 shadow-xl rounded-xl p-2 grid grid-cols-5 gap-1 z-[100] w-40">
-                            {EMOJIS.map(e => (
-                                <button key={e} onClick={() => insertEmoji(e)} className="p-1.5 hover:bg-gray-100 rounded text-lg leading-none transition-colors">
-                                    {e}
-                                </button>
-                            ))}
+             <div className="max-w-4xl mx-auto p-2 sm:p-4">
+                 
+                 {/* Integrated Input Container */}
+                 <div className="flex flex-col border border-gray-200 rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-300 transition-all bg-gray-50/50">
+                    
+                    {/* Integrated Toolbar - At the top of the box */}
+                    <div className="flex items-center gap-1 px-3 py-2 border-b border-gray-100 bg-white">
+                        <button 
+                            onMouseDown={(e) => { e.preventDefault(); insertFormat('**'); }}
+                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-slate-600 font-bold text-xs"
+                            title="Kalın"
+                        >B</button>
+                        <button 
+                            onMouseDown={(e) => { e.preventDefault(); insertFormat('_'); }}
+                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-slate-600 italic text-xs"
+                            title="İtalik"
+                        >I</button>
+                        <button 
+                            onMouseDown={(e) => { e.preventDefault(); insertFormat('<u>', '</u>'); }}
+                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-slate-600 underline text-xs"
+                            title="Altı Çizili"
+                        >U</button>
+                        <div className="w-px h-4 bg-gray-200 mx-1"></div>
+                        <div className="relative">
+                            <button 
+                                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                                onMouseDown={(e) => e.preventDefault()}
+                                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-slate-600 text-sm"
+                                title="Emoji Seç"
+                            >😊</button>
+                            
+                            {showEmojiPicker && (
+                                <div className="absolute bottom-full mb-3 left-0 bg-white border border-gray-200 shadow-2xl rounded-2xl p-3 z-[100] w-64 md:w-72">
+                                    <div className="grid grid-cols-8 gap-1">
+                                        {EMOJIS.map(e => (
+                                            <button 
+                                                key={e} 
+                                                onClick={() => insertEmoji(e)}
+                                                onMouseDown={(e) => e.preventDefault()}
+                                                className="p-1.5 hover:bg-blue-50 rounded text-xl leading-none transition-colors"
+                                            >
+                                                {e}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="mt-2 pt-2 border-t border-gray-50 text-[10px] text-gray-400 font-bold text-center uppercase tracking-widest">
+                                        Emoji Paneli
+                                    </div>
+                                </div>
+                            )}
                         </div>
-                    )}
-                </div>
-             </div>
+                    </div>
 
-             {/* Input area */}
-             <div className="p-2 sm:p-4">
-                <div className="max-w-4xl mx-auto flex items-center gap-2">
-                    <div className="flex-1 bg-gray-100 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-1.5 sm:py-2 flex items-center gap-2 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all border border-transparent focus-within:border-blue-200">
+                    {/* Actual Input Row */}
+                    <div className="px-3 sm:px-4 py-2 sm:py-3 flex items-center gap-2 bg-white/50">
                         <form onSubmit={handleSendMessage} className="flex-1">
                             <input 
                                 ref={inputRef}
                                 value={inputText}
                                 onChange={e => setInputText(e.target.value)}
-                                className="w-full bg-transparent text-xs sm:text-sm text-slate-700 outline-none py-1"
-                                placeholder="Mesaj..."
+                                className="w-full bg-transparent text-[13px] sm:text-[14px] text-slate-700 outline-none py-1"
+                                placeholder="Bir şeyler yazın..."
                                 autoComplete="off"
                             />
                         </form>
+                        <button 
+                            type="button"
+                            onClick={() => handleSendMessage()}
+                            onMouseDown={(e) => e.preventDefault()} 
+                            disabled={!inputText.trim() && !selectedImage}
+                            className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-600 text-white flex items-center justify-center transition-all shadow-md active:scale-90 disabled:opacity-50 disabled:bg-gray-400 shrink-0"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                            </svg>
+                        </button>
                     </div>
-                    <button 
-                        type="button"
-                        onClick={() => handleSendMessage()}
-                        onMouseDown={(e) => e.preventDefault()} 
-                        disabled={!inputText.trim() && !selectedImage}
-                        className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-600 text-white flex items-center justify-center transition-all shadow-md active:scale-90 disabled:opacity-50 disabled:bg-gray-400 shrink-0"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-                        </svg>
-                    </button>
-                </div>
+                 </div>
+                 
              </div>
          </div>
       </div>
