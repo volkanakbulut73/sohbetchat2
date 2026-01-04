@@ -10,8 +10,10 @@ interface AiChatModuleProps {
   title?: string;
   roomId?: string; 
   isPrivate?: boolean;         
-  isBlocked?: boolean;         
+  isBlocked?: boolean; // Karşı tarafın engelli olup olmadığı durumu
   onUserDoubleClick?: (user: User) => void; 
+  onBlockUser?: () => void;
+  onUnblockUser?: () => void;
 }
 
 const EMOJIS = [
@@ -25,6 +27,17 @@ const EMOJIS = [
   '🤝', '💍', '💎', '💰', '📈', '📍', '🗺️', '⏰', '🔋', '🔌'
 ];
 
+const COLORS = [
+    '#000000', // Siyah
+    '#dc2626', // Kırmızı
+    '#16a34a', // Yeşil
+    '#2563eb', // Mavi
+    '#9333ea', // Mor
+    '#db2777', // Pembe
+    '#ca8a04', // Sarı/Turuncu
+    '#4b5563', // Gri
+];
+
 const AiChatModule: React.FC<AiChatModuleProps> = ({ 
   currentUser, 
   topic, 
@@ -33,12 +46,15 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   roomId,
   isPrivate = false,
   isBlocked = false,
-  onUserDoubleClick
+  onUserDoubleClick,
+  onBlockUser,
+  onUnblockUser
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [displayUsers, setDisplayUsers] = useState<User[]>([]);
   const [humanUsers, setHumanUsers] = useState<User[]>([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   
   // Audio Recording State
@@ -149,6 +165,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     editorRef.current?.focus();
     document.execCommand(command, false, value);
     editorRef.current?.focus();
+    if (command === 'foreColor') setShowColorPicker(false);
   };
 
   const insertEmoji = (emoji: string) => {
@@ -173,7 +190,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
 
   // --- AUDIO RECORDING LOGIC ---
   const startRecording = async () => {
-    if (!isPrivate) return; 
+    if (!isPrivate || isBlocked) return; 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
@@ -228,10 +245,15 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
 
   // --- SEND MESSAGE ---
   const handleSendMessage = async (overrideText?: string, audioData?: string) => {
+    if (isBlocked) {
+        alert("Bu kullanıcı engelli, mesaj gönderemezsiniz.");
+        return;
+    }
+
     const content = overrideText !== undefined ? overrideText : (editorRef.current?.innerHTML || '');
     const plainText = overrideText !== undefined ? overrideText : (editorRef.current?.innerText || '');
     
-    if ((!plainText.trim() && !selectedImage && !audioData) || isBlocked) return;
+    if ((!plainText.trim() && !selectedImage && !audioData)) return;
 
     const userMsgPayload: Omit<Message, 'id'> = {
       senderId: currentUser.id,
@@ -248,6 +270,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     setSelectedImage(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     setShowEmojiPicker(false);
+    setShowColorPicker(false);
     
     try {
       await sendMessageToPb(userMsgPayload, currentRoomId);
@@ -327,7 +350,23 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                     </div>
                  )}
 
-                 <div className="flex flex-col border border-gray-200 rounded-2xl overflow-hidden focus-within:border-blue-400 transition-all bg-white shadow-sm">
+                {showColorPicker && (
+                    <div className="absolute bottom-full left-14 mb-4 bg-white border border-gray-200 shadow-2xl rounded-2xl p-4 z-[999]">
+                        <div className="flex gap-2">
+                            {COLORS.map(c => (
+                                <button 
+                                    key={c} 
+                                    onClick={() => execCommand('foreColor', c)} 
+                                    className="w-6 h-6 rounded-full border border-gray-200 hover:scale-110 transition-transform"
+                                    style={{ backgroundColor: c }}
+                                    title={c}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                 )}
+
+                 <div className={`flex flex-col border rounded-2xl overflow-hidden transition-all bg-white shadow-sm ${isBlocked ? 'border-red-200 opacity-70 pointer-events-none' : 'border-gray-200 focus-within:border-blue-400'}`}>
                     {/* Seçilen Resim Önizleme */}
                     {selectedImage && (
                         <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 flex items-start gap-3">
@@ -357,7 +396,16 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                             onMouseDown={(e) => { e.preventDefault(); execCommand('underline'); }} 
                             className="w-10 h-9 rounded-lg hover:bg-white hover:shadow-sm underline text-black text-base transition-colors"
                         >U</button>
+                        
                         <div className="w-px h-5 bg-gray-200 mx-2"></div>
+                        
+                        <button 
+                            onMouseDown={(e) => { e.preventDefault(); setShowColorPicker(!showColorPicker); }} 
+                            className="w-10 h-9 rounded-lg hover:bg-white hover:shadow-sm text-base transition-colors"
+                            title="Yazı Rengi"
+                        >
+                            🎨
+                        </button>
                         <button 
                             onMouseDown={(e) => { e.preventDefault(); setShowEmojiPicker(!showEmojiPicker); }} 
                             className="w-10 h-9 rounded-lg hover:bg-white hover:shadow-sm text-xl"
@@ -393,7 +441,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                         )}
                         <div
                             ref={editorRef}
-                            contentEditable
+                            contentEditable={!isBlocked}
                             className="flex-1 min-h-[24px] max-h-[150px] overflow-y-auto outline-none text-[15px] text-slate-700 px-2 py-1"
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -401,7 +449,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                                     handleSendMessage();
                                 }
                             }}
-                            data-placeholder="Mesajınızı buraya yazın..."
+                            data-placeholder={isBlocked ? "Bu sohbet engellendi." : "Mesajınızı buraya yazın..."}
                         />
                         
                         {/* Sesli Mesaj Butonu (Bas-Konuş) */}
@@ -412,7 +460,8 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                                 onMouseLeave={stopRecording}
                                 onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
                                 onTouchEnd={(e) => { e.preventDefault(); stopRecording(); }}
-                                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-lg active:scale-95 shrink-0 ${isRecording ? 'bg-red-500 text-white scale-110' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                                disabled={isBlocked}
+                                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-lg active:scale-95 shrink-0 ${isRecording ? 'bg-red-500 text-white scale-110' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'} ${isBlocked ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 title="Basılı tutarak konuşun"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -423,7 +472,8 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
 
                         <button 
                             onClick={() => handleSendMessage()}
-                            className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center transition-all shadow-lg active:scale-95 shrink-0"
+                            disabled={isBlocked}
+                            className={`w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center transition-all shadow-lg active:scale-95 shrink-0 ${isBlocked ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                 <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
@@ -441,6 +491,19 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
             <h3 className="text-[8px] sm:text-[10px] font-black text-center sm:text-left text-gray-400 uppercase tracking-widest mb-2 sm:mb-4 truncate">
                 Üyeler <span className="hidden sm:inline">({displayUsers.length})</span>
             </h3>
+            
+            {/* Özel Sohbette Engelleme Butonu */}
+            {isPrivate && (
+                <div className="mb-4 hidden sm:block">
+                     <button 
+                        onClick={isBlocked ? onUnblockUser : onBlockUser}
+                        className={`w-full py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors ${isBlocked ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
+                     >
+                         {isBlocked ? 'Engeli Kaldır' : 'Kullanıcıyı Engelle'}
+                     </button>
+                </div>
+            )}
+
             <div className="space-y-2 sm:space-y-3">
                 {displayUsers.map(u => (
                     <div 

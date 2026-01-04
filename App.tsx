@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import JoinScreen from './components/JoinScreen.tsx';
 import AiChatModule from './components/ChatInterface.tsx';
@@ -11,6 +12,10 @@ function App() {
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [showChannelList, setShowChannelList] = useState(false);
   const [unreadRoomIds, setUnreadRoomIds] = useState<Set<string>>(new Set());
+  
+  // New Features State
+  const [allowDms, setAllowDms] = useState(true);
+  const [blockedUsers, setBlockedUsers] = useState<Set<string>>(new Set());
 
   // Global Realtime Subscription for incoming messages
   useEffect(() => {
@@ -26,9 +31,19 @@ function App() {
           // If I am NOT the sender
           if (msg.senderId !== user.id) {
             
+            // 1. Check if Blocked
+            if (blockedUsers.has(msg.senderId)) return;
+
+            // 2. Check if DMs are allowed
+            // Note: If the tab is ALREADY open, we allow the message through even if DMs are off globally, 
+            // otherwise the conversation freezes. Use allowDms primarily to stop NEW tabs.
+            const tabExists = openTabs.find(t => t.id === msg.room);
+
+            if (!tabExists && !allowDms) return;
+
             setOpenTabs(prev => {
-              const tabExists = prev.find(t => t.id === msg.room);
-              if (!tabExists) {
+              const exists = prev.find(t => t.id === msg.room);
+              if (!exists) {
                 // Automatically create the tab for the recipient
                 const newPrivateRoom: ChatRoom = {
                   id: msg.room,
@@ -60,7 +75,7 @@ function App() {
     return () => {
       pb.collection('messages').unsubscribe('*');
     };
-  }, [user, activeTabId]);
+  }, [user, activeTabId, allowDms, blockedUsers, openTabs]); // Added dependencies
 
   // Clear unread status when switching tabs
   useEffect(() => {
@@ -109,10 +124,18 @@ function App() {
     setOpenTabs([]);
     setActiveTabId(null);
     setUnreadRoomIds(new Set());
+    setBlockedUsers(new Set());
   };
 
   const handleUserDoubleClick = (targetUser: User) => {
     if (!user || targetUser.id === user.id) return;
+    
+    // Check blocking before opening
+    if (blockedUsers.has(targetUser.id)) {
+        alert("Bu kullanıcıyı engellediniz.");
+        return;
+    }
+
     // Common private room ID pattern
     const privateRoomId = `private_${[user.id, targetUser.id].sort().join('_')}`;
     const existingTab = openTabs.find(t => t.id === privateRoomId);
@@ -133,9 +156,38 @@ function App() {
     }
   };
 
+  const handleBlockUser = (userId: string) => {
+    setBlockedUsers(prev => new Set(prev).add(userId));
+    // Opsiyonel: Engellenen kişiyle olan açık sekmeyi kapatabiliriz
+    // const tabToClose = openTabs.find(t => t.isPrivate && t.participants.some(p => p.id === userId));
+    // if(tabToClose) handleCloseTab(tabToClose.id, { stopPropagation: () => {} } as any);
+  };
+
+  const handleUnblockUser = (userId: string) => {
+    setBlockedUsers(prev => {
+        const next = new Set(prev);
+        next.delete(userId);
+        return next;
+    });
+  };
+
   if (!user) return <JoinScreen onJoin={handleJoin} />;
 
   const activeRoom = openTabs.find(t => t.id === activeTabId);
+  
+  // Find the other user in a private chat to determine block status
+  let isOtherUserBlocked = false;
+  let otherUserId = "";
+  
+  if (activeRoom?.isPrivate && activeRoom.participants.length > 0) {
+      // In private chat, the participant list usually contains the other person
+      // Or we can parse the room ID, but using participants is safer if set correctly
+      const otherUser = activeRoom.participants.find(p => p.id !== user.id);
+      if (otherUser) {
+          otherUserId = otherUser.id;
+          isOtherUserBlocked = blockedUsers.has(otherUserId);
+      }
+  }
 
   return (
     <div className="h-[100dvh] w-full bg-white flex flex-col font-sans overflow-hidden fixed inset-0">
@@ -148,13 +200,26 @@ function App() {
                  <span className="text-slate-800 font-extrabold text-sm tracking-tight hidden lg:block uppercase">Workigom</span>
               </div>
               
-              <div className="relative shrink-0">
+              <div className="flex items-center gap-2 shrink-0">
                   <button 
                     onClick={() => setShowChannelList(!showChannelList)}
                     className="flex items-center gap-2 px-3 py-2 bg-[#f0f2f5] hover:bg-gray-200 text-slate-700 rounded-xl transition-all font-bold text-xs"
                   >
                       <span>📂 <span className="hidden sm:inline">Odalar</span></span>
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" /></svg>
+                  </button>
+
+                  {/* DM Toggle Button */}
+                  <button
+                    onClick={() => setAllowDms(!allowDms)}
+                    title={allowDms ? "Özel Mesajlar Açık" : "Özel Mesajlar Kapalı"}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all font-bold text-xs border ${allowDms ? 'bg-green-50 text-green-600 border-green-200' : 'bg-red-50 text-red-600 border-red-200'}`}
+                  >
+                     {allowDms ? (
+                         <><span>🔓</span><span className="hidden sm:inline">DM Açık</span></>
+                     ) : (
+                         <><span>🔒</span><span className="hidden sm:inline">DM Kapalı</span></>
+                     )}
                   </button>
 
                   {showChannelList && (
@@ -250,6 +315,11 @@ function App() {
                 roomId={activeRoom.id}
                 isPrivate={activeRoom.isPrivate}
                 onUserDoubleClick={handleUserDoubleClick}
+                
+                // Props for blocking
+                isBlocked={isOtherUserBlocked}
+                onBlockUser={() => otherUserId && handleBlockUser(otherUserId)}
+                onUnblockUser={() => otherUserId && handleUnblockUser(otherUserId)}
              />
           ) : (
              <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300">
