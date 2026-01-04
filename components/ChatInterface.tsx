@@ -42,25 +42,17 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   const [displayUsers, setDisplayUsers] = useState<User[]>([]);
   const [humanUsers, setHumanUsers] = useState<User[]>([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  
+  // Audio Recording State
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const currentRoomId = roomId || (isPrivate ? `private_${currentUser.id}` : 'general');
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  useEffect(() => {
-    // Pixabay 403 hatasını önlemek için alternatif kaynak.
-    // Prodüksiyon için bu dosyayı sunucunuza indirip '/sounds/notify.mp3' gibi bir yoldan sunmanız önerilir.
-    audioRef.current = new Audio('https://media.geeksforgeeks.org/wp-content/uploads/20190531135120/beep.mp3'); 
-    audioRef.current.volume = 0.5;
-  }, []);
-
-  const playNotificationSound = () => {
-    if (audioRef.current) {
-        audioRef.current.currentTime = 0;
-        audioRef.current.play().catch(e => console.log("Audio play blocked", e));
-    }
-  };
 
   // Mesaj Geçmişi ve Mesaj Aboneliği
   useEffect(() => {
@@ -74,7 +66,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
         if (e.action === 'create' && e.record.room === currentRoomId) {
             setMessages(prev => {
                 if (prev.some(m => m.id === e.record.id)) return prev;
-                if (e.record.senderId !== currentUser.id) playNotificationSound();
+                // Not: Ses çalma özelliği kaldırıldı.
                 const newMsg: Message = {
                     id: e.record.id,
                     senderId: e.record.senderId,
@@ -83,7 +75,8 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                     text: e.record.text,
                     timestamp: new Date(e.record.created),
                     isUser: e.record.isUser,
-                    image: e.record.image || undefined
+                    image: e.record.image || undefined,
+                    audio: e.record.audio || undefined
                 };
                 return [...prev, newMsg];
             });
@@ -178,73 +171,152 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     document.execCommand('insertText', false, emoji);
   };
 
-  const handleSendMessage = async () => {
-    const content = editorRef.current?.innerHTML || '';
-    const plainText = editorRef.current?.innerText || '';
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit kontrolü
+          alert("Dosya boyutu 5MB'dan küçük olmalıdır.");
+          return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // --- AUDIO RECORDING LOGIC ---
+  const startRecording = async () => {
+    if (!isPrivate) return; 
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = async () => {
+            const base64Audio = reader.result as string;
+            // Send audio message immediately
+            await handleSendMessage(undefined, base64Audio);
+        };
+        // Stop all tracks to release mic
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Mikrofon hatası:", err);
+      alert("Mikrofon erişimi sağlanamadı.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  // --- SEND MESSAGE ---
+  // Optional parameters allow sending audio directly without looking at editorRef
+  const handleSendMessage = async (overrideText?: string, audioData?: string) => {
+    const content = overrideText !== undefined ? overrideText : (editorRef.current?.innerHTML || '');
+    const plainText = overrideText !== undefined ? overrideText : (editorRef.current?.innerText || '');
     
-    if (!plainText.trim() || isBlocked) return;
+    // Metin yoksa, resim yoksa ve ses yoksa gönderme
+    if ((!plainText.trim() && !selectedImage && !audioData) || isBlocked) return;
 
     const userMsgPayload: Omit<Message, 'id'> = {
       senderId: currentUser.id,
       senderName: currentUser.name,
       senderAvatar: currentUser.avatar,
-      text: content,
+      text: audioData ? '🎤 Sesli Mesaj' : content,
       timestamp: new Date(),
       isUser: true,
+      image: selectedImage || undefined,
+      audio: audioData || undefined
     };
 
-    if (editorRef.current) editorRef.current.innerHTML = '';
+    if (editorRef.current && !audioData) editorRef.current.innerHTML = '';
+    setSelectedImage(null); // Resmi temizle
+    if (fileInputRef.current) fileInputRef.current.value = ''; // Input'u sıfırla
     setShowEmojiPicker(false);
     
     try {
       await sendMessageToPb(userMsgPayload, currentRoomId);
       
-      setIsTyping(true);
-      const currentMessages = [...messages, { ...userMsgPayload, id: 'temp' }];
-      const botResponses = await generateGroupResponse(
-        currentMessages, 
-        participants, 
-        topic, 
-        currentUser.name
-      );
+      // Bot mantığı sadece sesli mesaj dışındaki durumlarda veya botların ses algılaması eklenirse çalışabilir.
+      // Şimdilik sadece text/resim durumunda botları tetikliyoruz.
+      if (!audioData) {
+          setIsTyping(true);
+          const currentMessages = [...messages, { ...userMsgPayload, id: 'temp' }];
+          const botResponses = await generateGroupResponse(
+            currentMessages, 
+            participants, 
+            topic, 
+            currentUser.name
+          );
 
-      if (botResponses && botResponses.length > 0) {
-        for (const resp of botResponses) {
-          const bot = participants.find((p) => p.id === resp.botId);
-          if (bot) {
-            setIsTyping(true);
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            let finalMessage = resp.message;
-            
-            if (bot.id === 'bot_socrates') {
-              finalMessage = await generateSocratesResponse(currentMessages, currentUser.name);
+          if (botResponses && botResponses.length > 0) {
+            for (const resp of botResponses) {
+              const bot = participants.find((p) => p.id === resp.botId);
+              if (bot) {
+                setIsTyping(true);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                let finalMessage = resp.message;
+                
+                if (bot.id === 'bot_socrates') {
+                  finalMessage = await generateSocratesResponse(currentMessages, currentUser.name);
+                }
+
+                await sendMessageToPb({
+                    senderId: bot.id,
+                    senderName: bot.name,
+                    senderAvatar: bot.avatar,
+                    text: finalMessage,
+                    timestamp: new Date(),
+                    isUser: false
+                }, currentRoomId);
+              }
             }
-
-            await sendMessageToPb({
-                senderId: bot.id,
-                senderName: bot.name,
-                senderAvatar: bot.avatar,
-                text: finalMessage,
-                timestamp: new Date(),
-                isUser: false
-            }, currentRoomId);
           }
-        }
+          setIsTyping(false);
       }
-      setIsTyping(false);
     } catch (err) {
       console.error("Hata:", err);
       setIsTyping(false);
     }
   };
 
-  const renderMessageContent = (html: string) => {
+  const renderMessageContent = (msg: Message) => {
     return (
-      <div 
-        className="rich-content break-words text-[14px] sm:text-[15px]"
-        dangerouslySetInnerHTML={{ __html: html }} 
-      />
+      <div className="rich-content break-words text-[14px] sm:text-[15px]">
+         {msg.image && (
+            <div className="mb-2">
+                <img src={msg.image} alt="Paylaşılan Görsel" className="max-w-full rounded-lg max-h-64 object-cover border border-white/20" />
+            </div>
+         )}
+         {msg.audio && (
+            <div className="mb-2 flex items-center gap-2 min-w-[200px]">
+                <audio controls src={msg.audio} className="w-full h-8 rounded-lg" />
+            </div>
+         )}
+         {!msg.audio && <div dangerouslySetInnerHTML={{ __html: msg.text }} />}
+         {msg.audio && <div className="text-xs opacity-70 italic mt-1">Sesli Mesaj</div>}
+      </div>
     );
   };
 
@@ -264,13 +336,13 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                         <div className="shrink-0 mb-4">
                             <img src={msg.senderAvatar} className="w-8 h-8 rounded-full shadow-sm bg-gray-200 object-cover border-2 border-white" />
                         </div>
-                        <div className={`flex flex-col max-w-[80%] ${isMe ? 'items-end' : 'items-start'}`}>
+                        <div className={`flex flex-col max-w-[85%] ${isMe ? 'items-end' : 'items-start'}`}>
                              {showHeader && <span className="text-[9px] font-bold text-gray-400 mb-1 px-1 uppercase">{msg.senderName}</span>}
                              <div className={`
                                  px-4 py-2.5 shadow-sm
                                  ${isMe ? 'bg-blue-600 text-white rounded-[20px] rounded-br-[4px]' : 'bg-white text-slate-700 rounded-[20px] rounded-bl-[4px] border border-gray-100'}
                              `}>
-                                {renderMessageContent(msg.text)}
+                                {renderMessageContent(msg)}
                              </div>
                              <div className="text-[8px] text-gray-300 mt-1">{msg.timestamp.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
                         </div>
@@ -295,6 +367,22 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                  )}
 
                  <div className="flex flex-col border border-gray-200 rounded-2xl overflow-hidden focus-within:border-blue-400 transition-all bg-white shadow-sm">
+                    {/* Seçilen Resim Önizleme */}
+                    {selectedImage && (
+                        <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 flex items-start gap-3">
+                            <div className="relative group">
+                                <img src={selectedImage} alt="Önizleme" className="h-16 w-16 object-cover rounded-lg border border-gray-200" />
+                                <button 
+                                    onClick={() => { setSelectedImage(null); if(fileInputRef.current) fileInputRef.current.value = ''; }}
+                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow-md hover:bg-red-600 transition-colors"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                            <span className="text-xs text-gray-500 mt-1">Görsel eklendi</span>
+                        </div>
+                    )}
+
                     <div className="flex items-center gap-1 px-3 py-2 border-b border-gray-50 bg-gray-50/50">
                         <button 
                             onMouseDown={(e) => { e.preventDefault(); execCommand('bold'); }} 
@@ -313,9 +401,35 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                             onMouseDown={(e) => { e.preventDefault(); setShowEmojiPicker(!showEmojiPicker); }} 
                             className="w-10 h-9 rounded-lg hover:bg-white hover:shadow-sm text-xl"
                         >😊</button>
+                        
+                        {/* SADECE ÖZEL SOHBETTE RESİM ve SES */}
+                        {isPrivate && (
+                            <>
+                                <button 
+                                    onClick={() => fileInputRef.current?.click()} 
+                                    className="w-10 h-9 rounded-lg hover:bg-white hover:shadow-sm text-lg flex items-center justify-center transition-colors text-slate-600"
+                                    title="Resim Ekle"
+                                >
+                                    📷
+                                </button>
+                                <input 
+                                    type="file" 
+                                    ref={fileInputRef} 
+                                    onChange={handleFileSelect} 
+                                    accept="image/*" 
+                                    className="hidden" 
+                                />
+                            </>
+                        )}
                     </div>
 
-                    <div className="flex items-center gap-2 p-3">
+                    <div className="flex items-center gap-2 p-3 relative">
+                        {isRecording && (
+                            <div className="absolute inset-0 bg-red-50 z-10 flex items-center justify-center gap-2 text-red-500 font-bold animate-pulse">
+                                <span className="w-3 h-3 bg-red-500 rounded-full"></span>
+                                Kaydediliyor... Bırakınca gönderilir.
+                            </div>
+                        )}
                         <div
                             ref={editorRef}
                             contentEditable
@@ -328,8 +442,26 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                             }}
                             data-placeholder="Mesajınızı buraya yazın..."
                         />
+                        
+                        {/* Sesli Mesaj Butonu (Bas-Konuş) */}
+                        {isPrivate && (
+                            <button
+                                onMouseDown={startRecording}
+                                onMouseUp={stopRecording}
+                                onMouseLeave={stopRecording}
+                                onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
+                                onTouchEnd={(e) => { e.preventDefault(); stopRecording(); }}
+                                className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all shadow-lg active:scale-95 shrink-0 ${isRecording ? 'bg-red-500 text-white scale-110' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                                title="Basılı tutarak konuşun"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
+                                </svg>
+                            </button>
+                        )}
+
                         <button 
-                            onClick={handleSendMessage}
+                            onClick={() => handleSendMessage()}
                             className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center transition-all shadow-lg active:scale-95 shrink-0"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">

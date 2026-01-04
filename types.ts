@@ -1,3 +1,4 @@
+
 export interface User {
   id: string;
   name: string;
@@ -15,6 +16,7 @@ export interface Message {
   timestamp: Date;
   isUser: boolean;
   image?: string; // Base64 image string
+  audio?: string; // Base64 audio string
 }
 
 export interface ChatRoom {

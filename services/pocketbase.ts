@@ -81,6 +81,7 @@ export const sendMessageToPb = async (msg: Omit<Message, 'id'>, roomId: string) 
       senderAvatar: msg.senderAvatar,
       isUser: msg.isUser,
       image: msg.image || '',
+      audio: msg.audio || '',
       timestamp: msg.timestamp.toISOString() // PB date formatı için
     };
     
@@ -108,7 +109,8 @@ export const getRoomMessages = async (roomId: string) => {
       text: record.text,
       timestamp: new Date(record.created),
       isUser: record.isUser,
-      image: record.image
+      image: record.image,
+      audio: record.audio
     })) as Message[];
 
   } catch (error) {
