@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="tr" class="h-full">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover" />
     <title>Workigom Chat | Güvenli Sohbet Platformu</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -26,19 +26,26 @@
       }
     </script>
     <style>
-      /* Custom scrollbar for better aesthetics */
+      /* Ensure root and body take full space */
+      html, body, #root {
+        height: 100%;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden; /* Prevent body bounce */
+        position: fixed; /* Lock body movement on mobile */
+      }
+
+      /* Custom scrollbar */
       ::-webkit-scrollbar {
-        width: 6px;
+        width: 4px;
       }
       ::-webkit-scrollbar-track {
         background: transparent;
       }
       ::-webkit-scrollbar-thumb {
         background: #cbd5e1;
-        border-radius: 3px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8;
+        border-radius: 10px;
       }
 
       /* Private Chat Request Flash Animation */
@@ -48,6 +55,12 @@
       }
       .animate-flash-red {
         animation: flash-red 1s ease-in-out infinite;
+      }
+
+      /* Force scrolling to be smooth and enabled for children */
+      .scroll-container {
+        -webkit-overflow-scrolling: touch;
+        overflow-y: auto;
       }
     </style>
   <script type="importmap">
@@ -64,8 +77,8 @@
 }
 </script>
 </head>
-  <body class="bg-gray-50 text-slate-800 antialiased h-screen overflow-hidden font-sans">
-    <div id="root" class="h-full w-full"></div>
+  <body class="bg-gray-50 text-slate-800 antialiased font-sans">
+    <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
   </body>
 </html>

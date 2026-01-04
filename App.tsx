@@ -9,7 +9,6 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [openTabs, setOpenTabs] = useState<ChatRoom[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
-  const [blockedBotIds, setBlockedBotIds] = useState<Set<string>>(new Set());
   const [showChannelList, setShowChannelList] = useState(false);
 
   const handleJoin = (loggedInUser: User, room: ChatRoom) => {
@@ -70,22 +69,22 @@ function App() {
   const activeRoom = openTabs.find(t => t.id === activeTabId);
 
   return (
-    <div className="h-screen w-full bg-white flex flex-col font-sans overflow-hidden">
+    <div className="h-[100dvh] w-full bg-white flex flex-col font-sans overflow-hidden fixed inset-0">
       
       {/* Header Bar */}
-      <div className="bg-white border-b border-gray-100 flex items-center justify-between px-4 py-2 shrink-0 z-50 min-h-[75px]">
-          <div className="flex items-center gap-4 flex-1">
-              <div className="flex items-center gap-2 mr-4 shrink-0">
+      <div className="bg-white border-b border-gray-100 flex items-center justify-between px-3 md:px-4 py-2 shrink-0 z-50 min-h-[75px]">
+          <div className="flex items-center gap-3 md:gap-4 flex-1">
+              <div className="flex items-center gap-2 shrink-0">
                  <div className="w-8 h-8 bg-[#6366f1] rounded-lg flex items-center justify-center text-white font-bold text-sm">W</div>
-                 <span className="text-slate-800 font-extrabold text-sm tracking-tight hidden lg:block">WORKIGOM</span>
+                 <span className="text-slate-800 font-extrabold text-sm tracking-tight hidden lg:block uppercase">Workigom</span>
               </div>
               
               <div className="relative shrink-0">
                   <button 
                     onClick={() => setShowChannelList(!showChannelList)}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#f0f2f5] hover:bg-gray-200 text-slate-700 rounded-xl transition-all font-bold text-xs"
+                    className="flex items-center gap-2 px-3 py-2 bg-[#f0f2f5] hover:bg-gray-200 text-slate-700 rounded-xl transition-all font-bold text-xs"
                   >
-                      <span>📂 Odalar</span>
+                      <span>📂 <span className="hidden sm:inline">Odalar</span></span>
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" /></svg>
                   </button>
 
@@ -102,9 +101,9 @@ function App() {
               </div>
 
               {/* Tabs and Radio Player */}
-              <div className="flex items-center gap-4 flex-1 overflow-hidden">
+              <div className="flex items-center gap-2 md:gap-4 flex-1 overflow-hidden">
                   {/* Tabs */}
-                  <div className="flex items-center gap-1 border-l border-gray-100 pl-4 overflow-x-auto scrollbar-hide max-w-[40%]">
+                  <div className="flex items-center gap-1 border-l border-gray-100 pl-2 md:pl-4 overflow-x-auto scrollbar-hide">
                       {openTabs.map(tab => {
                           const isActive = activeTabId === tab.id;
                           const isPrivateRequest = tab.isPrivate && !isActive;
@@ -114,7 +113,7 @@ function App() {
                                 key={tab.id}
                                 onClick={() => setActiveTabId(tab.id)}
                                 className={`
-                                    group flex items-center gap-2 px-4 py-2 rounded-xl cursor-pointer transition-all border shrink-0 relative
+                                    group flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer transition-all border shrink-0 relative
                                     ${isActive 
                                         ? 'bg-white border-blue-500 text-blue-600 shadow-sm' 
                                         : 'bg-transparent border-transparent text-gray-400 hover:text-gray-600'}
@@ -140,7 +139,7 @@ function App() {
                   </div>
 
                   {/* Online Radio Player */}
-                  <div className="hidden md:flex items-center justify-center border-l border-gray-100 pl-4 overflow-hidden">
+                  <div className="hidden lg:flex items-center justify-center border-l border-gray-100 pl-4 overflow-hidden shrink-0">
                     <div className="bg-[#f0f2f5] rounded-xl p-1 shadow-sm border border-gray-100 overflow-hidden flex items-center">
                       <iframe 
                         width="345" 
@@ -157,22 +156,22 @@ function App() {
               </div>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
-              <div className="flex items-center gap-3 bg-[#f0f2f5] px-3 py-1.5 rounded-full">
-                  <img src={user.avatar} className="w-7 h-7 rounded-full border border-white" />
+          <div className="flex items-center gap-2 md:gap-3 shrink-0 ml-2">
+              <div className="flex items-center gap-2 bg-[#f0f2f5] px-2 py-1 md:px-3 md:py-1.5 rounded-full">
+                  <img src={user.avatar} className="w-6 h-6 md:w-7 md:h-7 rounded-full border border-white" />
                   <div className="pr-1 text-right hidden sm:block">
-                      <p className="text-[11px] font-bold text-slate-700 leading-tight">{user.name}</p>
-                      <p className="text-[9px] text-green-500 font-bold leading-tight">● Çevrimiçi</p>
+                      <p className="text-[10px] md:text-[11px] font-bold text-slate-700 leading-tight truncate max-w-[80px]">{user.name}</p>
+                      <p className="text-[8px] md:text-[9px] text-green-500 font-bold leading-tight">● Çevrimiçi</p>
                   </div>
               </div>
-              <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-500">
+              <button onClick={handleLogout} className="p-1.5 text-gray-400 hover:text-red-500">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
               </button>
           </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 relative bg-white h-full overflow-hidden">
+      <div className="flex-1 relative bg-white overflow-hidden h-full">
           {activeRoom ? (
              <AiChatModule 
                 key={activeRoom.id}
