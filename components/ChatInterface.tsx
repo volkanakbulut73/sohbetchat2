@@ -99,29 +99,22 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     return () => { pb.collection('users').unsubscribe('*'); };
   }, []);
 
-  // Botlar, Mevcut Kullanıcı, Diğer İnsanlar ve Mesaj Gönderenleri Birleştir
+  // Kullanıcıları Birleştir
   useEffect(() => {
     const uniqueUsers = new Map<string, User>();
     
-    // 1. Önce Botları ekle
+    // 1. Botları ekle (Artık boş gelecek ama mantık kalabilir)
     participants.forEach(p => uniqueUsers.set(p.id, p));
     
     // 2. Mesaj geçmişindeki kullanıcıları ekle
     messages.forEach(m => {
        if (!uniqueUsers.has(m.senderId)) {
-           // Mesajı atan kişi bot mu?
-           const knownBot = participants.find(p => p.id === m.senderId);
-           if (knownBot) {
-               uniqueUsers.set(m.senderId, knownBot);
-           } else {
-               // İnsan kullanıcısı
-               uniqueUsers.set(m.senderId, {
-                   id: m.senderId,
-                   name: m.senderName,
-                   avatar: m.senderAvatar,
-                   isBot: false
-               });
-           }
+           uniqueUsers.set(m.senderId, {
+               id: m.senderId,
+               name: m.senderName,
+               avatar: m.senderAvatar,
+               isBot: false
+           });
        }
     });
 
@@ -133,14 +126,10 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     // 4. Kendimi ekle
     uniqueUsers.set(currentUser.id, currentUser);
 
-    // Sıralama: Ben -> Botlar -> İnsanlar
+    // Sıralama: Ben -> Diğerleri (Alfabetik)
     const sortedUsers = Array.from(uniqueUsers.values()).sort((a, b) => {
         if (a.id === currentUser.id) return -1;
         if (b.id === currentUser.id) return 1;
-        
-        if (a.isBot && !b.isBot) return -1;
-        if (!a.isBot && b.isBot) return 1;
-        
         return a.name.localeCompare(b.name);
     });
 
@@ -261,7 +250,6 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     setShowEmojiPicker(false);
     
     try {
-      // Sadece mesajı PocketBase'e kaydet, AI tetikleme yok.
       await sendMessageToPb(userMsgPayload, currentRoomId);
     } catch (err) {
       console.error("Mesaj gönderme hatası:", err);
@@ -396,7 +384,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                         )}
                     </div>
 
-                    <div className="flex items-center gap-2 p-3 relative">
+                    <div className="flex items-center gap-2 p-2 relative">
                         {isRecording && (
                             <div className="absolute inset-0 bg-red-50 z-10 flex items-center justify-center gap-2 text-red-500 font-bold animate-pulse">
                                 <span className="w-3 h-3 bg-red-500 rounded-full"></span>
@@ -406,7 +394,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                         <div
                             ref={editorRef}
                             contentEditable
-                            className="flex-1 min-h-[60px] max-h-[250px] overflow-y-auto outline-none text-[16px] text-slate-700 px-1 py-2"
+                            className="flex-1 min-h-[24px] max-h-[150px] overflow-y-auto outline-none text-[15px] text-slate-700 px-2 py-1"
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' && !e.shiftKey) {
                                     e.preventDefault();
@@ -424,10 +412,10 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                                 onMouseLeave={stopRecording}
                                 onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
                                 onTouchEnd={(e) => { e.preventDefault(); stopRecording(); }}
-                                className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all shadow-lg active:scale-95 shrink-0 ${isRecording ? 'bg-red-500 text-white scale-110' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-lg active:scale-95 shrink-0 ${isRecording ? 'bg-red-500 text-white scale-110' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
                                 title="Basılı tutarak konuşun"
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                     <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
                                 </svg>
                             </button>
@@ -435,9 +423,9 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
 
                         <button 
                             onClick={() => handleSendMessage()}
-                            className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center transition-all shadow-lg active:scale-95 shrink-0"
+                            className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center transition-all shadow-lg active:scale-95 shrink-0"
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                 <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
                             </svg>
                         </button>
@@ -465,9 +453,6 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                         <div className="min-w-0 w-full text-center sm:text-left">
                             <p className={`text-[10px] sm:text-sm font-bold truncate ${u.id === currentUser.id ? 'text-blue-600' : 'text-slate-700'}`}>
                                 {u.name}
-                            </p>
-                            <p className="hidden sm:block text-[10px] text-gray-400 uppercase tracking-tighter">
-                                {u.isBot ? 'Yapay Zeka' : 'İnsan'}
                             </p>
                         </div>
                     </div>
