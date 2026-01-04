@@ -72,14 +72,14 @@ function App() {
     <div className="h-screen w-full bg-white flex flex-col font-sans overflow-hidden">
       
       {/* Header Bar */}
-      <div className="bg-white border-b border-gray-100 flex items-center justify-between px-4 py-2 shrink-0 z-50">
-          <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 mr-4">
+      <div className="bg-white border-b border-gray-100 flex items-center justify-between px-4 py-2 shrink-0 z-50 min-h-[75px]">
+          <div className="flex items-center gap-4 flex-1">
+              <div className="flex items-center gap-2 mr-4 shrink-0">
                  <div className="w-8 h-8 bg-[#6366f1] rounded-lg flex items-center justify-center text-white font-bold text-sm">W</div>
-                 <span className="text-slate-800 font-extrabold text-sm tracking-tight">WORKIGOM</span>
+                 <span className="text-slate-800 font-extrabold text-sm tracking-tight hidden lg:block">WORKIGOM</span>
               </div>
               
-              <div className="relative">
+              <div className="relative shrink-0">
                   <button 
                     onClick={() => setShowChannelList(!showChannelList)}
                     className="flex items-center gap-2 px-4 py-2 bg-[#f0f2f5] hover:bg-gray-200 text-slate-700 rounded-xl transition-all font-bold text-xs"
@@ -100,35 +100,54 @@ function App() {
                   )}
               </div>
 
-              {/* Tabs */}
-              <div className="flex items-center gap-1 ml-4 border-l border-gray-100 pl-4 overflow-x-auto scrollbar-hide">
-                  {openTabs.map(tab => {
-                      const isActive = activeTabId === tab.id;
-                      return (
-                          <div 
-                            key={tab.id}
-                            onClick={() => setActiveTabId(tab.id)}
-                            className={`
-                                group flex items-center gap-2 px-4 py-2 rounded-xl cursor-pointer transition-all border
-                                ${isActive 
-                                    ? 'bg-white border-blue-500 text-blue-600 shadow-sm' 
-                                    : 'bg-transparent border-transparent text-gray-400 hover:text-gray-600'}
-                            `}
-                          >
-                              <span className="text-xs font-bold truncate"># {tab.name}</span>
-                              <button onClick={(e) => handleCloseTab(tab.id, e)} className="p-1 rounded-full opacity-0 group-hover:opacity-100 hover:bg-gray-100">
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" /></svg>
-                              </button>
-                          </div>
-                      );
-                  })}
+              {/* Tabs and Radio Player */}
+              <div className="flex items-center gap-4 flex-1 overflow-hidden">
+                  {/* Tabs */}
+                  <div className="flex items-center gap-1 border-l border-gray-100 pl-4 overflow-x-auto scrollbar-hide max-w-[40%]">
+                      {openTabs.map(tab => {
+                          const isActive = activeTabId === tab.id;
+                          return (
+                              <div 
+                                key={tab.id}
+                                onClick={() => setActiveTabId(tab.id)}
+                                className={`
+                                    group flex items-center gap-2 px-4 py-2 rounded-xl cursor-pointer transition-all border shrink-0
+                                    ${isActive 
+                                        ? 'bg-white border-blue-500 text-blue-600 shadow-sm' 
+                                        : 'bg-transparent border-transparent text-gray-400 hover:text-gray-600'}
+                                `}
+                              >
+                                  <span className="text-xs font-bold truncate"># {tab.name}</span>
+                                  <button onClick={(e) => handleCloseTab(tab.id, e)} className="p-1 rounded-full opacity-0 group-hover:opacity-100 hover:bg-gray-100">
+                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" /></svg>
+                                  </button>
+                              </div>
+                          );
+                      })}
+                  </div>
+
+                  {/* Online Radio Player */}
+                  <div className="hidden md:flex items-center justify-center border-l border-gray-100 pl-4 overflow-hidden">
+                    <div className="bg-[#f0f2f5] rounded-xl p-1 shadow-sm border border-gray-100 overflow-hidden flex items-center">
+                      <iframe 
+                        width="345" 
+                        height="65" 
+                        src="https://www.radyod.com/iframe-small" 
+                        frameBorder="0" 
+                        allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" 
+                        allowFullScreen
+                        className="rounded-lg scale-[0.85] origin-center"
+                        title="Radyo D Player"
+                      ></iframe>
+                    </div>
+                  </div>
               </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
               <div className="flex items-center gap-3 bg-[#f0f2f5] px-3 py-1.5 rounded-full">
                   <img src={user.avatar} className="w-7 h-7 rounded-full border border-white" />
-                  <div className="pr-1 text-right">
+                  <div className="pr-1 text-right hidden sm:block">
                       <p className="text-[11px] font-bold text-slate-700 leading-tight">{user.name}</p>
                       <p className="text-[9px] text-green-500 font-bold leading-tight">● Çevrimiçi</p>
                   </div>
