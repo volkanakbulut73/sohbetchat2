@@ -1,8 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Message } from '../types.ts';
-import { generateGroupResponse } from '../services/geminiService.ts';
-import { generateSocratesResponse } from '../services/grokService.ts';
 import { pb, sendMessageToPb, getRoomMessages, getAllUsers } from '../services/pocketbase.ts';
 
 interface AiChatModuleProps {
@@ -38,7 +36,6 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   onUserDoubleClick
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
   const [displayUsers, setDisplayUsers] = useState<User[]>([]);
   const [humanUsers, setHumanUsers] = useState<User[]>([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -157,7 +154,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   useEffect(() => {
     const timer = setTimeout(scrollToBottom, 100);
     return () => clearTimeout(timer);
-  }, [messages, isTyping]);
+  }, [messages]);
 
   const execCommand = (command: string, value: string = '') => {
     editorRef.current?.focus();
@@ -264,56 +261,10 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     setShowEmojiPicker(false);
     
     try {
-      // 1. Kullanıcı mesajını gönder
+      // Sadece mesajı PocketBase'e kaydet, AI tetikleme yok.
       await sendMessageToPb(userMsgPayload, currentRoomId);
-      
-      // 2. Bot mantığını tetikle (Sadece ses değilse ve odada bot varsa)
-      if (!audioData && !isPrivate && participants.some(p => p.isBot)) {
-          setIsTyping(true);
-          
-          // Yapay zekaya bağlamı göndermek için geçici mesaj listesi
-          const tempMsg: Message = { ...userMsgPayload, id: 'temp' } as Message;
-          const currentMessages = [...messages, tempMsg];
-          
-          // Hangi botların cevap vereceğini belirle
-          const botResponses = await generateGroupResponse(
-            currentMessages, 
-            participants, 
-            topic, 
-            currentUser.name
-          );
-
-          if (botResponses && botResponses.length > 0) {
-            for (const resp of botResponses) {
-              const bot = participants.find((p) => p.id === resp.botId);
-              if (bot) {
-                // İnsani bir gecikme ekle
-                await new Promise(resolve => setTimeout(resolve, 1500));
-                
-                let finalMessage = resp.message;
-                
-                // Sokrates özel mantığı
-                if (bot.id === 'bot_socrates') {
-                   finalMessage = await generateSocratesResponse(currentMessages, currentUser.name);
-                }
-
-                // Bot mesajını gönder
-                await sendMessageToPb({
-                    senderId: bot.id,
-                    senderName: bot.name,
-                    senderAvatar: bot.avatar,
-                    text: finalMessage,
-                    timestamp: new Date(),
-                    isUser: false
-                }, currentRoomId);
-              }
-            }
-          }
-          setIsTyping(false);
-      }
     } catch (err) {
-      console.error("Hata:", err);
-      setIsTyping(false);
+      console.error("Mesaj gönderme hatası:", err);
     }
   };
 
@@ -372,7 +323,6 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                     </div>
                 )
             })}
-            {isTyping && <div className="ml-10 bg-white px-3 py-1.5 rounded-full w-fit shadow-sm border border-gray-100 animate-pulse text-[10px] text-blue-500 font-bold">Yazıyor...</div>}
             <div ref={messagesEndRef} className="h-4" />
          </div>
 
