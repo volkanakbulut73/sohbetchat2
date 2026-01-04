@@ -122,22 +122,4 @@ export const getRoomMessages = async (roomId: string) => {
 export const signOut = () => {
     pb.authStore.clear();
 };
-
-/**
- * AI Servislerine Proxy isteği atar.
- * Backend'de /api/ai/chat endpoint'i karşılamalıdır.
- */
-export const sendAiRequest = async (payload: any) => {
-    try {
-        // PocketBase üzerinden custom endpoint'e istek atıyoruz.
-        // Bu endpoint backend tarafında implemente edilmiş olmalıdır.
-        return await pb.send('/api/ai/chat', {
-            method: 'POST',
-            body: payload,
-            headers: { 'Content-Type': 'application/json' }
-        });
-    } catch (error) {
-        console.error("AI Proxy Request Failed:", error);
-        throw error;
-    }
-};
+    

@@ -1,8 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Message } from '../types.ts';
-import { generateGroupResponse } from '../services/geminiService.ts';
-import { generateSocratesResponse } from '../services/grokService.ts';
 import { pb, sendMessageToPb, getRoomMessages, getAllUsers } from '../services/pocketbase.ts';
 
 interface AiChatModuleProps {
@@ -109,7 +107,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     // 1. Önce Botları ekle
     participants.forEach(p => uniqueUsers.set(p.id, p));
     
-    // 2. Mesaj geçmişindeki kullanıcıları ekle (Sohbet edenler görünmeli, liste boş gelse bile)
+    // 2. Mesaj geçmişindeki kullanıcıları ekle
     messages.forEach(m => {
        if (!uniqueUsers.has(m.senderId)) {
            // Mesajı atan kişi bot mu?
@@ -128,7 +126,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
        }
     });
 
-    // 3. API'den gelen insanları ekle (Varsa üzerine yazar, bilgiler daha güncel olabilir)
+    // 3. API'den gelen insanları ekle
     humanUsers.forEach(u => {
       uniqueUsers.set(u.id, u);
     });
@@ -173,7 +171,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit kontrolü
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
           alert("Dosya boyutu 5MB'dan küçük olmalıdır.");
           return;
       }
@@ -191,7 +189,6 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
-      // Desteklenen MIME türünü belirle (Safari vs Chrome uyumluluğu için)
       let mimeType = 'audio/webm';
       if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
           mimeType = 'audio/webm;codecs=opus';
@@ -210,10 +207,8 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
       };
 
       mediaRecorder.onstop = async () => {
-        // Blob oluştur ve MIME türünü koru
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         
-        // Boş kayıtları engelle
         if (audioBlob.size < 100) {
              stream.getTracks().forEach(track => track.stop());
              return;
@@ -223,10 +218,8 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
         reader.readAsDataURL(audioBlob);
         reader.onloadend = async () => {
             const base64Audio = reader.result as string;
-            // Send audio message immediately
             await handleSendMessage(undefined, base64Audio);
         };
-        // Stop all tracks to release mic
         stream.getTracks().forEach(track => track.stop());
       };
 
@@ -246,12 +239,10 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   };
 
   // --- SEND MESSAGE ---
-  // Optional parameters allow sending audio directly without looking at editorRef
   const handleSendMessage = async (overrideText?: string, audioData?: string) => {
     const content = overrideText !== undefined ? overrideText : (editorRef.current?.innerHTML || '');
     const plainText = overrideText !== undefined ? overrideText : (editorRef.current?.innerText || '');
     
-    // Metin yoksa, resim yoksa ve ses yoksa gönderme
     if ((!plainText.trim() && !selectedImage && !audioData) || isBlocked) return;
 
     const userMsgPayload: Omit<Message, 'id'> = {
@@ -266,53 +257,15 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     };
 
     if (editorRef.current && !audioData) editorRef.current.innerHTML = '';
-    setSelectedImage(null); // Resmi temizle
-    if (fileInputRef.current) fileInputRef.current.value = ''; // Input'u sıfırla
+    setSelectedImage(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
     setShowEmojiPicker(false);
     
     try {
+      // Sadece mesajı kaydediyoruz. Bot yanıtı backend tarafında halledilecek.
       await sendMessageToPb(userMsgPayload, currentRoomId);
-      
-      // Bot mantığı sadece sesli mesaj dışındaki durumlarda çalışır
-      if (!audioData) {
-          setIsTyping(true);
-          const currentMessages = [...messages, { ...userMsgPayload, id: 'temp' }];
-          const botResponses = await generateGroupResponse(
-            currentMessages, 
-            participants, 
-            topic, 
-            currentUser.name
-          );
-
-          if (botResponses && botResponses.length > 0) {
-            for (const resp of botResponses) {
-              const bot = participants.find((p) => p.id === resp.botId);
-              if (bot) {
-                setIsTyping(true);
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                let finalMessage = resp.message;
-                
-                if (bot.id === 'bot_socrates') {
-                  finalMessage = await generateSocratesResponse(currentMessages, currentUser.name);
-                }
-
-                await sendMessageToPb({
-                    senderId: bot.id,
-                    senderName: bot.name,
-                    senderAvatar: bot.avatar,
-                    text: finalMessage,
-                    timestamp: new Date(),
-                    isUser: false
-                }, currentRoomId);
-              }
-            }
-          }
-          setIsTyping(false);
-      }
     } catch (err) {
-      console.error("Hata:", err);
-      setIsTyping(false);
+      console.error("Mesaj gönderme hatası:", err);
     }
   };
 
@@ -331,7 +284,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                     playsInline 
                     src={msg.audio} 
                     className="w-full h-10 rounded-lg outline-none" 
-                    key={msg.id} // Re-render on id change
+                    key={msg.id}
                 />
             </div>
          ) : (
@@ -497,7 +450,6 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
       </div>
       
       {/* KULLANICI LİSTESİ SIDEBAR */}
-      {/* Mobilde w-20 (80px), Masaüstünde w-64 (256px) - Her zaman görünür */}
       <div className="w-20 sm:w-64 bg-white border-l border-gray-100 flex flex-col shrink-0 transition-all duration-300">
           <div className="p-2 sm:p-4 flex-1 overflow-y-auto">
             <h3 className="text-[8px] sm:text-[10px] font-black text-center sm:text-left text-gray-400 uppercase tracking-widest mb-2 sm:mb-4 truncate">
@@ -510,15 +462,12 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                         className="flex flex-col sm:flex-row items-center sm:gap-3 p-1 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer group"
                         onDoubleClick={() => onUserDoubleClick?.(u)}
                     >
-                        {/* Avatar: Mobilde gizle (hidden), sm ve üzerinde göster */}
                         <img src={u.avatar} className="hidden sm:block w-8 h-8 rounded-full object-cover group-hover:ring-2 ring-blue-100 transition-all" />
                         
                         <div className="min-w-0 w-full text-center sm:text-left">
-                            {/* İsim: Mobilde 10px, Masaüstünde normal */}
                             <p className={`text-[10px] sm:text-sm font-bold truncate ${u.id === currentUser.id ? 'text-blue-600' : 'text-slate-700'}`}>
                                 {u.name}
                             </p>
-                            {/* Rol: Mobilde gizle, Masaüstünde göster */}
                             <p className="hidden sm:block text-[10px] text-gray-400 uppercase tracking-tighter">
                                 {u.isBot ? 'Yapay Zeka' : 'İnsan'}
                             </p>
@@ -533,3 +482,4 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
 };
 
 export default AiChatModule;
+    
