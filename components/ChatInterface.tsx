@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Message } from '../types.ts';
 import { generateGroupResponse } from '../services/geminiService.ts';
@@ -181,12 +180,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   return (
     <div className="flex h-full w-full bg-white overflow-hidden relative">
       <div className="flex-1 flex flex-col min-w-0 relative h-full border-r border-gray-50">
-         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-white z-30 shrink-0">
-             <div className="min-w-0">
-                 <h2 className="text-xs sm:text-sm font-bold text-slate-800 truncate">{title || topic}</h2>
-                 <p className="text-[9px] sm:text-[10px] text-gray-400 truncate">{topic}</p>
-             </div>
-         </div>
+         {/* ÜST BAŞLIK KALDIRILDI (İsteğiniz üzerine) */}
 
          <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 bg-[#f8f9fa] touch-auto">
             {messages.map((msg, index) => {
@@ -215,9 +209,9 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
             <div ref={messagesEndRef} className="h-4" />
          </div>
 
-         {/* ZENGİN METİN GİRİŞ ALANI */}
+         {/* ZENGİN METİN GİRİŞ ALANI - GENİŞLETİLDİ */}
          <div className="bg-white border-t border-gray-100 p-2 sm:p-4 relative z-40">
-             <div className="max-w-4xl mx-auto">
+             <div className="w-full">
                  
                  {showEmojiPicker && (
                     <div className="absolute bottom-full left-4 mb-4 bg-white border border-gray-200 shadow-2xl rounded-2xl p-4 z-[999] w-72">
@@ -230,7 +224,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                  )}
 
                  <div className="flex flex-col border border-gray-200 rounded-2xl overflow-hidden focus-within:border-blue-400 transition-all bg-white shadow-sm">
-                    {/* ARAÇ ÇUBUĞU - BUTONLAR SİYAH YAPILDI */}
+                    {/* ARAÇ ÇUBUĞU */}
                     <div className="flex items-center gap-1 px-3 py-2 border-b border-gray-50 bg-gray-50/50">
                         <button 
                             onMouseDown={(e) => { e.preventDefault(); execCommand('bold'); }} 
@@ -251,14 +245,12 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                         >😊</button>
                     </div>
 
-                    {/* DÜZENLENEBİLİR ALAN */}
+                    {/* DÜZENLENEBİLİR ALAN - MİNİMUM YÜKSEKLİK ARTIRILDI */}
                     <div className="flex items-center gap-2 p-3">
-                        {/* Fix: Changed placeholder to data-placeholder because div elements don't support placeholder attribute in TypeScript. 
-                            HTML5 contentEditable divs do not have a standard 'placeholder' property. */}
                         <div
                             ref={editorRef}
                             contentEditable
-                            className="flex-1 min-h-[40px] max-h-[150px] overflow-y-auto outline-none text-[15px] text-slate-700 px-1 py-1"
+                            className="flex-1 min-h-[60px] max-h-[250px] overflow-y-auto outline-none text-[16px] text-slate-700 px-1 py-2"
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' && !e.shiftKey) {
                                     e.preventDefault();
@@ -269,15 +261,15 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                         />
                         <button 
                             onClick={handleSendMessage}
-                            className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center transition-all shadow active:scale-95 shrink-0"
+                            className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center transition-all shadow-lg active:scale-95 shrink-0"
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
                                 <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
                             </svg>
                         </button>
                     </div>
                  </div>
-                 <p className="text-[10px] text-gray-400 mt-2 px-1">Artık yazarken stiliniz anında görünür!</p>
+                 {/* ALT YARDIM METNİ KALDIRILDI (İsteğiniz üzerine) */}
              </div>
          </div>
       </div>
