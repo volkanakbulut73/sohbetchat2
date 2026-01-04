@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import JoinScreen from './components/JoinScreen.tsx';
 import AiChatModule from './components/ChatInterface.tsx';
 import { User, ChatRoom } from './types.ts';
+import { ROOMS } from './constants.ts';
 import { signOut } from './services/pocketbase.ts';
 
 function App() {
@@ -9,16 +10,25 @@ function App() {
   const [openTabs, setOpenTabs] = useState<ChatRoom[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [blockedBotIds, setBlockedBotIds] = useState<Set<string>>(new Set());
+  const [showChannelList, setShowChannelList] = useState(false);
 
   // Kullanıcı PocketBase ile giriş yapınca tetiklenir
   const handleJoin = (loggedInUser: User, room: ChatRoom) => {
     setUser(loggedInUser);
     
-    // Odayı sekmelere ekle
+    // İlk girişte seçilen odayı aç
     if (!openTabs.find(t => t.id === room.id)) {
         setOpenTabs([...openTabs, room]);
     }
     setActiveTabId(room.id);
+  };
+
+  const handleOpenRoom = (room: ChatRoom) => {
+    if (!openTabs.find(t => t.id === room.id)) {
+        setOpenTabs([...openTabs, room]);
+    }
+    setActiveTabId(room.id);
+    setShowChannelList(false);
   };
 
   const handleCloseTab = (roomId: string, e: React.MouseEvent) => {
@@ -31,9 +41,6 @@ function App() {
             setActiveTabId(newTabs[newTabs.length - 1].id);
         } else {
             setActiveTabId(null);
-            // Tüm sekmeler kapandıysa çıkış yapabilir veya oda seçimine dönebiliriz.
-            // Şimdilik oturumu açık tutuyoruz ama ekran boş kalmasın diye oda seçimi gibi davranabiliriz.
-             setUser(null); // JoinScreen'e geri dön
         }
     }
   };
@@ -97,11 +104,35 @@ function App() {
           
           {/* Header Row */}
           <div className="flex items-center justify-between px-4 py-2 bg-[#050505] border-b border-gray-900 text-xs">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-4">
                   <div className="text-[#00ff9d] font-bold tracking-widest">WORKIGOM</div>
-                  <span className="text-gray-600">|</span>
-                  <span className="text-gray-500">Güvenli Sohbet Ağı</span>
+                  
+                  {/* Channel List Button */}
+                  <div className="relative">
+                      <button 
+                        onClick={() => setShowChannelList(!showChannelList)}
+                        className="flex items-center gap-1 text-gray-300 hover:text-white bg-gray-900 px-2 py-1 rounded border border-gray-700"
+                      >
+                          <span># Kanallar</span>
+                          <span className="text-[10px]">▼</span>
+                      </button>
+                      
+                      {showChannelList && (
+                          <div className="absolute top-full left-0 mt-1 w-48 bg-[#1f1f1f] border border-gray-700 rounded shadow-xl z-50 py-1">
+                              {ROOMS.map(r => (
+                                  <button
+                                    key={r.id}
+                                    onClick={() => handleOpenRoom(r)}
+                                    className="w-full text-left px-3 py-2 text-gray-400 hover:bg-[#252525] hover:text-[#00ff9d] text-xs"
+                                  >
+                                      # {r.name}
+                                  </button>
+                              ))}
+                          </div>
+                      )}
+                  </div>
               </div>
+              
               <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2 text-gray-400">
                       <img src={user.avatar} className="w-4 h-4 rounded-full" />
@@ -117,15 +148,15 @@ function App() {
           </div>
 
           {/* Tabs Row */}
-          <div className="flex items-end px-2 pt-2 gap-1 overflow-x-auto bg-[#1a1a1a]">
+          <div className="flex items-end px-2 pt-2 gap-1 overflow-x-auto bg-[#1a1a1a] scrollbar-thin">
               {openTabs.map(room => (
                   <div 
                     key={room.id}
                     onClick={() => setActiveTabId(room.id)}
                     className={`
-                        group flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg cursor-pointer select-none border-t border-l border-r min-w-[120px] max-w-[200px]
+                        group flex items-center gap-2 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-medium rounded-t-lg cursor-pointer select-none border-t border-l border-r min-w-[100px] max-w-[180px]
                         ${activeTabId === room.id 
-                            ? 'bg-[#252525] text-[#00ff9d] border-gray-700 relative z-10' 
+                            ? 'bg-[#252525] text-[#00ff9d] border-gray-700 relative z-10 shadow-[0_-2px_10px_rgba(0,0,0,0.3)]' 
                             : 'bg-[#0f0f0f] text-gray-500 border-gray-900 hover:bg-[#151515] hover:text-gray-300'}
                     `}
                   >
@@ -135,15 +166,16 @@ function App() {
                       </span>
                       <button 
                         onClick={(e) => handleCloseTab(room.id, e)}
-                        className="text-gray-600 hover:text-red-500 font-bold p-0.5 rounded-full"
+                        className="text-gray-600 hover:text-red-500 font-bold p-0.5 rounded-full hover:bg-white/10 w-4 h-4 flex items-center justify-center"
                       >
                           ×
                       </button>
                   </div>
               ))}
               
-              {/* Optional: Add Room Button */}
-              {/* <button className="px-3 py-2 text-gray-500 hover:text-[#00ff9d] font-bold">+</button> */}
+              {openTabs.length === 0 && (
+                  <div className="text-xs text-gray-600 px-4 py-2 italic">Açık kanal yok. Yukarıdan seçin.</div>
+              )}
           </div>
       </div>
 
@@ -166,9 +198,15 @@ function App() {
                 onUnblockUser={() => activeRoom.participants[0] && toggleBlock(activeRoom.participants[0].id)}
              />
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-gray-600">
-             <div className="text-4xl mb-4 opacity-20">WORKIGOM</div>
-             <p>Açık bir sohbet penceresi yok.</p>
+          <div className="flex flex-col items-center justify-center h-full text-gray-600 bg-[#252525]">
+             <div className="text-4xl mb-4 opacity-10 font-black tracking-tighter">WORKIGOM</div>
+             <p className="text-sm">Sohbete başlamak için üst menüden bir kanal seçin.</p>
+             <button 
+                onClick={() => setShowChannelList(true)}
+                className="mt-4 px-4 py-2 bg-[#00ff9d]/10 text-[#00ff9d] border border-[#00ff9d]/30 rounded hover:bg-[#00ff9d]/20 transition-colors"
+             >
+                 Kanal Listesini Aç
+             </button>
           </div>
         )}
       </div>

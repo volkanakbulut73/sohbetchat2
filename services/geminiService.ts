@@ -1,18 +1,21 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Message, User, BotResponseItem } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export const generateGroupResponse = async (
   messages: Message[],
   participants: User[],
   topic: string,
   userName: string
 ): Promise<BotResponseItem[]> => {
-  if (!process.env.API_KEY) {
-    console.error("API Key is missing in process.env");
+  // API Key kontrolü ve başlatma işlemini fonksiyon içine taşıdık
+  // Böylece uygulama açılışında key yoksa bile uygulama çökmez.
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    console.error("API Key process.env.API_KEY içinde bulunamadı. Botlar cevap veremeyecek.");
     return [];
   }
+
+  const ai = new GoogleGenAI({ apiKey });
 
   // Filter out the bots from participants to map IDs later
   const bots = participants.filter((p) => p.isBot);
