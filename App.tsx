@@ -203,7 +203,7 @@ function App() {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 relative bg-white">
+      <div className="flex-1 relative bg-white h-full overflow-hidden flex flex-col">
           {activeRoom ? (
              <AiChatModule 
                 key={activeRoom.id}

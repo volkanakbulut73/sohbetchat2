@@ -42,6 +42,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [displayUsers, setDisplayUsers] = useState<User[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -110,6 +111,31 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
         pb.collection('messages').unsubscribe('*');
     };
   }, [currentRoomId, currentUser, topic, isPrivate, participants]);
+
+  // Update Display Users based on participants + messages history
+  useEffect(() => {
+    const uniqueUsers = new Map<string, User>();
+    
+    // 1. Add Current User
+    uniqueUsers.set(currentUser.id, currentUser);
+    
+    // 2. Add Defined Participants (Bots)
+    participants.forEach(p => uniqueUsers.set(p.id, p));
+
+    // 3. Scan messages for other users
+    messages.forEach(msg => {
+        if (!uniqueUsers.has(msg.senderId) && msg.senderId !== 'system') {
+            uniqueUsers.set(msg.senderId, {
+                id: msg.senderId,
+                name: msg.senderName,
+                avatar: msg.senderAvatar,
+                isBot: false // Assumed human if not in participants list
+            });
+        }
+    });
+
+    setDisplayUsers(Array.from(uniqueUsers.values()));
+  }, [messages, currentUser, participants]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -200,18 +226,16 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     }
   };
 
-  const allUsersInRoom = [currentUser, ...participants];
-
-  // User List Component (Modern Right Sidebar)
+  // User List Component (Modern Right Sidebar - Always Visible)
   const UserList = () => (
-    <div className="bg-white h-full overflow-y-auto border-l border-gray-100 flex flex-col w-56">
+    <div className="bg-white h-full overflow-y-auto border-l border-gray-100 flex flex-col w-56 shrink-0">
         <div className="p-4 border-b border-gray-100 bg-gray-50/50 sticky top-0 z-10 backdrop-blur-sm">
             <h3 className="text-gray-400 text-[10px] font-bold uppercase tracking-widest text-center">
-                Üyeler ({allUsersInRoom.length})
+                Üyeler ({displayUsers.length})
             </h3>
         </div>
         <ul className="flex-1 p-2 space-y-1">
-            {allUsersInRoom.map(user => (
+            {displayUsers.map(user => (
                 <li 
                     key={user.id}
                     onDoubleClick={() => onUserDoubleClick && onUserDoubleClick(user)}
@@ -225,8 +249,8 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                         <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${user.isBot ? 'bg-blue-400' : 'bg-green-400'}`}></div>
                     </div>
                     <div className="min-w-0 overflow-hidden">
-                        <div className={`text-xs font-bold truncate ${user.isBot ? 'text-blue-600' : 'text-slate-700'}`}>
-                            {user.name}
+                        <div className={`text-xs font-bold truncate ${user.isBot ? 'text-blue-600' : 'text-slate-700'} ${user.id === currentUser.id ? 'text-indigo-700' : ''}`}>
+                            {user.name} {user.id === currentUser.id && '(Sen)'}
                         </div>
                         {user.isBot && <div className="text-[10px] text-gray-400 truncate">{user.role}</div>}
                     </div>
@@ -240,10 +264,10 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     <div className="flex h-full w-full bg-slate-50 overflow-hidden">
       
       {/* Center: Chat Area */}
-      <div className="flex-1 flex flex-col min-w-0 relative">
+      <div className="flex-1 flex flex-col min-w-0 relative h-full">
          
          {/* Info Bar (Inside Chat) */}
-         <div className="bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between shadow-sm z-20">
+         <div className="bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between shadow-sm z-20 shrink-0">
             <div>
                 <h2 className="text-slate-800 font-bold text-sm flex items-center gap-2">
                    {isPrivate ? '🔒 Özel Sohbet' : `# ${title}`}
@@ -252,8 +276,8 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
             </div>
          </div>
 
-         {/* Messages Area */}
-         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5 bg-[#F9FAFB] relative">
+         {/* Messages Area - Added flex-1 and min-h-0 to allow scrolling only here */}
+         <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 space-y-5 bg-[#F9FAFB] relative">
             {messages.map((msg, index) => {
                 if (msg.senderId === 'system') return (
                     <div key={msg.id} className="flex justify-center my-4">
@@ -261,7 +285,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                     </div>
                 );
                 
-                const isMe = msg.isUser;
+                const isMe = msg.isUser && msg.senderId === currentUser.id;
                 const showAvatar = index === 0 || messages[index - 1].senderId !== msg.senderId;
 
                 return (
@@ -318,7 +342,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
          </div>
 
          {/* Input Area */}
-         <div className="bg-white p-4 border-t border-gray-100 shadow-[0_-5px_20px_rgba(0,0,0,0.02)] z-30">
+         <div className="bg-white p-4 border-t border-gray-100 shadow-[0_-5px_20px_rgba(0,0,0,0.02)] z-30 shrink-0">
              <div className="max-w-4xl mx-auto flex items-end gap-2">
                  
                  {/* Tools Button Group */}
@@ -391,10 +415,8 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
          </div>
       </div>
 
-      {/* User Sidebar - Hidden on mobile, visible on desktop */}
-      <div className="hidden md:flex">
-          <UserList />
-      </div>
+      {/* User Sidebar - Always Visible now */}
+      <UserList />
 
     </div>
   );
