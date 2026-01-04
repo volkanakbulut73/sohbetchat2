@@ -1,20 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Message, User, BotResponseItem } from "../types";
 
-// Safety check for process environment variable in browser environments
-const getApiKey = () => {
-    try {
-        if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-            return process.env.API_KEY;
-        }
-    } catch (e) {
-        // Ignore error
-    }
-    return '';
-};
-
-const apiKey = getApiKey();
-const ai = new GoogleGenAI({ apiKey });
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const generateGroupResponse = async (
   messages: Message[],
@@ -22,23 +9,23 @@ export const generateGroupResponse = async (
   topic: string,
   userName: string
 ): Promise<BotResponseItem[]> => {
-  if (!apiKey) {
-    console.error("API Key is missing");
+  if (!process.env.API_KEY) {
+    console.error("API Key is missing in process.env");
     return [];
   }
 
   // Filter out the bots from participants to map IDs later
   const bots = participants.filter((p) => p.isBot);
   
+  if (bots.length === 0) return [];
+
   // Create a context string describing the bots
   const botDescriptions = bots
     .map((b) => `- ${b.name} (ID: ${b.id}): ${b.role}`)
     .join("\n");
 
-  // Format recent history for context (last 10 messages)
-  // We need to check if the LAST message has an image to send to the API.
-  // Although Gemini supports images in history, for this demo we focus on the immediate turn's image.
-  const recentMessages = messages.slice(-10);
+  // Format recent history for context (last 15 messages for better context)
+  const recentMessages = messages.slice(-15);
   const historyText = recentMessages
     .map((m) => {
         const attachInfo = m.image ? " [RESİM GÖNDERDİ]" : "";
@@ -50,20 +37,27 @@ export const generateGroupResponse = async (
     Sen sanal bir Türkçe grup sohbeti motorusun.
     Bu sohbet odasının konusu: "${topic}".
     
-    Aşağıdaki bot karakterlerini yönetiyorsun:
+    Şu anki aktif bot karakterleri:
     ${botDescriptions}
     
-    Kullanıcı (${userName}) bir mesaj yazdı (veya bir resim gönderdi). 
-    Sohbet geçmişine ve varsa gönderilen resme bakarak, hangi botun veya botların cevap vermesi gerektiğine karar ver.
+    Son mesajı yazan kullanıcı: ${userName}
     
-    Kurallar:
-    1. Konuşmanın doğal akışına göre 1 veya en fazla 2 bot cevap vermelidir.
-    2. Her bot kendi kişiliğine (role) uygun konuşmalıdır.
-    3. Cevaplar kısa, sohbet havasında ve Türkçe olmalıdır.
-    4. Eğer soru spesifik bir bota sorulmadıysa, konuya en uygun bot cevap versin.
-    5. Eğer kullanıcı bir resim gönderdiyse, botlar bu resmi görmüş gibi yorum yapmalıdır.
+    GÖREV:
+    Sohbet geçmişini incele ve bu botlardan birinin veya birkaçının sohbete dahil olup olmaması gerektiğine karar ver.
     
-    Cevabı JSON formatında döndür.
+    KURALLAR:
+    1. Sadece gerekliyse cevap ver. Her mesaja cevap vermek zorunda değilsin.
+    2. Eğer cevap vereceksen, botun karakterine (${botDescriptions}) tam uygun bir ton kullan.
+    3. Cevaplar kısa, öz ve sohbet dilinde (samimi, Türkçe) olsun.
+    4. Kullanıcı bir resim gönderdiyse, resim hakkında yorum yap.
+    5. Botlar kendi aralarında da konuşabilir veya atışabilir.
+    
+    ÇIKTI FORMATI:
+    Cevabı saf JSON formatında döndür. Markdown bloğu kullanma.
+    Örnek:
+    [
+      { "botId": "bot_id", "message": "Merhaba!" }
+    ]
   `;
 
   try {
@@ -72,20 +66,24 @@ export const generateGroupResponse = async (
     
     // Add text part (includes history as context)
     contents.parts.push({
-        text: `Sohbet Geçmişi:\n${historyText}\n\nLütfen uygun bot cevaplarını üret.`
+        text: `Sohbet Geçmişi:\n${historyText}\n\nLütfen uygun bot cevaplarını (JSON array) üret.`
     });
 
     // Check if the last message has an image
     if (lastMessage && lastMessage.image) {
-        // Remove data URL prefix (e.g., "data:image/png;base64,")
-        const base64Data = lastMessage.image.split(',')[1];
-        if (base64Data) {
-            contents.parts.push({
-                inlineData: {
-                    mimeType: 'image/jpeg', // Assuming jpeg/png, standard base64 often works generic or we can parse it.
-                    data: base64Data
-                }
-            });
+        try {
+            // Remove data URL prefix (e.g., "data:image/png;base64,")
+            const base64Data = lastMessage.image.split(',')[1];
+            if (base64Data) {
+                contents.parts.push({
+                    inlineData: {
+                        mimeType: 'image/jpeg', 
+                        data: base64Data
+                    }
+                });
+            }
+        } catch (e) {
+            console.error("Image parsing failed", e);
         }
     }
 
@@ -110,8 +108,9 @@ export const generateGroupResponse = async (
     });
 
     if (response.text) {
-        const parsed = JSON.parse(response.text) as BotResponseItem[];
-        // Filter out any hallucinations where botId doesn't match available bots
+        // Clean up markdown if model adds it despite instructions
+        const cleanText = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleanText) as BotResponseItem[];
         return parsed.filter(item => bots.some(b => b.id === item.botId));
     }
     return [];
