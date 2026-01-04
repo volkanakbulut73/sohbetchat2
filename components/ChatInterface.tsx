@@ -36,14 +36,12 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   onUserDoubleClick
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [inputText, setInputText] = useState('');
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [displayUsers, setDisplayUsers] = useState<User[]>([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
   const currentRoomId = roomId || (isPrivate ? `private_${currentUser.id}` : 'general');
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -62,24 +60,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   useEffect(() => {
     const loadHistory = async () => {
         const history = await getRoomMessages(currentRoomId);
-        if (history.length > 0) {
-            setMessages(history);
-        } else {
-             const greetingText = isPrivate 
-               ? `${participants[0]?.name} ile özel sohbet başladı.`
-               : `${currentUser.name} sohbete katıldı.`;
-
-             const greeting: Message = {
-               id: 'system-welcome',
-               senderId: 'system',
-               senderName: 'Sistem',
-               senderAvatar: '',
-               text: greetingText,
-               timestamp: new Date(),
-               isUser: false,
-             };
-             setMessages([greeting]);
-        }
+        setMessages(history.length > 0 ? history : []);
     };
     loadHistory();
 
@@ -88,7 +69,6 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
             setMessages(prev => {
                 if (prev.some(m => m.id === e.record.id)) return prev;
                 if (e.record.senderId !== currentUser.id) playNotificationSound();
-
                 const newMsg: Message = {
                     id: e.record.id,
                     senderId: e.record.senderId,
@@ -104,27 +84,15 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
         }
     });
 
-    return () => {
-        pb.collection('messages').unsubscribe('*');
-    };
-  }, [currentRoomId, currentUser, isPrivate, participants]);
+    return () => { pb.collection('messages').unsubscribe('*'); };
+  }, [currentRoomId, currentUser]);
 
   useEffect(() => {
     const uniqueUsers = new Map<string, User>();
     uniqueUsers.set(currentUser.id, currentUser);
     participants.forEach(p => uniqueUsers.set(p.id, p));
-    messages.forEach(msg => {
-        if (!uniqueUsers.has(msg.senderId) && msg.senderId !== 'system') {
-            uniqueUsers.set(msg.senderId, {
-                id: msg.senderId,
-                name: msg.senderName,
-                avatar: msg.senderAvatar,
-                isBot: false
-            });
-        }
-    });
     setDisplayUsers(Array.from(uniqueUsers.values()));
-  }, [messages, currentUser, participants]);
+  }, [currentUser, participants]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -135,69 +103,36 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     return () => clearTimeout(timer);
   }, [messages, isTyping]);
 
-  const insertFormat = (tag: string, endTag?: string) => {
-    if (!inputRef.current) return;
-    const start = inputRef.current.selectionStart || 0;
-    const end = inputRef.current.selectionEnd || 0;
-    const text = inputText;
-    const selectedText = text.substring(start, end);
-    const before = text.substring(0, start);
-    const after = text.substring(end);
-    
-    const actualEndTag = endTag || tag;
-    
-    // Eğer seçim yoksa, araya placeholder koyup imleci oraya odakla
-    const placeholder = selectedText || "";
-    const newText = `${before}${tag}${placeholder}${actualEndTag}${after}`;
-    
-    setInputText(newText);
-    setTimeout(() => {
-        inputRef.current?.focus();
-        const offset = selectedText ? tag.length + selectedText.length + actualEndTag.length : tag.length;
-        inputRef.current?.setSelectionRange(start + tag.length, start + tag.length + placeholder.length);
-    }, 10);
+  const execCommand = (command: string, value: string = '') => {
+    document.execCommand(command, false, value);
+    editorRef.current?.focus();
   };
 
   const insertEmoji = (emoji: string) => {
-    if (!inputRef.current) return;
-    const start = inputRef.current.selectionStart || 0;
-    const text = inputText;
-    const before = text.substring(0, start);
-    const after = text.substring(start);
-    setInputText(before + emoji + after);
-    setTimeout(() => {
-        inputRef.current?.focus();
-        const newPos = start + emoji.length;
-        inputRef.current?.setSelectionRange(newPos, newPos);
-    }, 10);
+    editorRef.current?.focus();
+    document.execCommand('insertText', false, emoji);
   };
 
-  const handleSendMessage = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if ((!inputText.trim() && !selectedImage) || isBlocked) return;
+  const handleSendMessage = async () => {
+    const content = editorRef.current?.innerHTML || '';
+    const plainText = editorRef.current?.innerText || '';
+    
+    if (!plainText.trim() || isBlocked) return;
 
-    const currentInput = inputText;
     const userMsgPayload: Omit<Message, 'id'> = {
       senderId: currentUser.id,
       senderName: currentUser.name,
       senderAvatar: currentUser.avatar,
-      text: currentInput,
-      image: selectedImage || undefined,
+      text: content, // HTML içeriği gönderiyoruz
       timestamp: new Date(),
       isUser: true,
     };
 
-    setInputText('');
-    setSelectedImage(null);
+    if (editorRef.current) editorRef.current.innerHTML = '';
     setShowEmojiPicker(false);
-    
-    if (inputRef.current) {
-        inputRef.current.focus();
-    }
     
     try {
       await sendMessageToPb(userMsgPayload, currentRoomId);
-      await new Promise(resolve => setTimeout(resolve, 1000));
       
       setIsTyping(true);
       const botResponses = await generateGroupResponse(
@@ -208,15 +143,13 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
       );
       setIsTyping(false);
 
-      if (botResponses && botResponses.length > 0) {
+      if (botResponses) {
         for (const resp of botResponses) {
           const bot = participants.find((p) => p.id === resp.botId);
           if (bot) {
             setIsTyping(true);
-            const typingSpeed = Math.min(2000, Math.max(1000, resp.message.length * 30));
-            await new Promise(resolve => setTimeout(resolve, typingSpeed));
+            await new Promise(resolve => setTimeout(resolve, 1500));
             setIsTyping(false);
-            
             await sendMessageToPb({
                 senderId: bot.id,
                 senderName: bot.name,
@@ -229,230 +162,124 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
         }
       }
     } catch (err) {
-      console.error("Mesaj hatası:", err);
+      console.error("Hata:", err);
       setIsTyping(false);
     }
   };
 
-  /**
-   * Mesaj metnini baloncuk içinde stile dönüştürür.
-   */
-  const renderMessageContent = (text: string) => {
-    if (!text) return null;
-
-    // HTML escape (XSS koruması)
-    let html = text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-
-    // Dönüşümler:
-    // Underline: <u>...</u>
-    html = html.replace(/&lt;u&gt;([\s\S]*?)&lt;\/u&gt;/g, '<span style="text-decoration: underline;">$1</span>');
-    // Bold: **text**
-    html = html.replace(/\*\*([\s\S]*?)\*\*/g, '<strong>$1</strong>');
-    // Italic: _text_
-    html = html.replace(/_([\s\S]*?)_/g, '<em>$1</em>');
-    // Satır sonu
-    html = html.replace(/\n/g, '<br/>');
-
+  const renderMessageContent = (html: string) => {
     return (
       <div 
-        className="prose prose-sm max-w-none text-inherit"
-        style={{ color: 'inherit' }}
+        className="rich-content break-words text-[14px] sm:text-[15px]"
         dangerouslySetInnerHTML={{ __html: html }} 
       />
     );
   };
 
-  const UserListSidebar = () => (
-    <div className="relative z-20 w-24 sm:w-72 bg-white border-l border-gray-100 flex flex-col shrink-0">
-        <div className="p-3 sm:p-4 border-b border-gray-50 shrink-0">
-            <h3 className="text-gray-400 text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-center sm:text-left">
-                ÜYELER <span className="hidden sm:inline">({displayUsers.length})</span>
-            </h3>
-        </div>
-        <div className="flex-1 overflow-y-auto p-1 sm:p-2 space-y-1 touch-auto scroll-smooth text-center">
-            {displayUsers.map(user => (
-                <div 
-                    key={user.id}
-                    onClick={() => onUserDoubleClick && onUserDoubleClick(user)}
-                    className={`
-                        group flex items-center gap-1 sm:gap-3 p-2 sm:p-3 rounded-lg sm:rounded-xl cursor-pointer transition-all
-                        ${user.id === currentUser.id ? 'bg-blue-50/50' : 'hover:bg-gray-50'}
-                    `}
-                >
-                    <div className="relative shrink-0 hidden sm:block">
-                        <img src={user.avatar} className="w-10 h-10 rounded-full bg-gray-100 object-cover shadow-sm" />
-                        <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${user.isBot ? 'bg-blue-400' : 'bg-green-400'}`}></div>
-                    </div>
-                    <div className={`sm:hidden w-1.5 h-1.5 mx-auto shrink-0 rounded-full ${user.isBot ? 'bg-blue-400' : 'bg-green-400'}`}></div>
-                    <div className="min-w-0 overflow-hidden text-center sm:text-left flex-1 sm:flex-none">
-                        <div className={`text-[10px] sm:text-sm font-bold truncate ${user.id === currentUser.id ? 'text-blue-600' : 'text-slate-700'}`}>
-                            {user.name}
-                        </div>
-                        <div className="text-[8px] sm:text-[11px] text-gray-400 truncate uppercase hidden sm:block">
-                            {user.isBot ? (user.role?.split(' ')[0] || 'Bot') : 'Aktif'}
-                        </div>
-                    </div>
-                </div>
-            ))}
-        </div>
-    </div>
-  );
-
   return (
     <div className="flex h-full w-full bg-white overflow-hidden relative">
       <div className="flex-1 flex flex-col min-w-0 relative h-full border-r border-gray-50">
-         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-white/95 backdrop-blur-md z-30 shrink-0">
+         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-white z-30 shrink-0">
              <div className="min-w-0">
                  <h2 className="text-xs sm:text-sm font-bold text-slate-800 truncate">{title || topic}</h2>
                  <p className="text-[9px] sm:text-[10px] text-gray-400 truncate">{topic}</p>
              </div>
          </div>
 
-         <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 bg-[#f8f9fa] touch-auto scroll-smooth">
+         <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 bg-[#f8f9fa] touch-auto">
             {messages.map((msg, index) => {
-                if (msg.senderId === 'system') return (
-                    <div key={msg.id} className="flex justify-center my-2">
-                        <span className="text-[9px] sm:text-[10px] text-gray-400 bg-white/80 px-3 py-1 rounded-full border border-gray-100 shadow-sm">{msg.text}</span>
-                    </div>
-                );
-                
                 const isMe = msg.senderId === currentUser.id;
                 const showHeader = index === 0 || messages[index - 1].senderId !== msg.senderId;
 
                 return (
                     <div key={msg.id} className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end mb-1`}>
                         <div className="shrink-0 mb-4">
-                            <img src={msg.senderAvatar} className="w-7 h-7 sm:w-8 sm:h-8 rounded-full shadow-sm bg-gray-200 object-cover border-2 border-white" />
+                            <img src={msg.senderAvatar} className="w-8 h-8 rounded-full shadow-sm bg-gray-200 object-cover border-2 border-white" />
                         </div>
-                        <div className={`flex flex-col max-w-[85%] sm:max-w-[70%] ${isMe ? 'items-end' : 'items-start'}`}>
-                             {showHeader && (
-                                 <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 mb-1 px-1 uppercase tracking-tight">
-                                     {msg.senderName}
-                                 </span>
-                             )}
+                        <div className={`flex flex-col max-w-[80%] ${isMe ? 'items-end' : 'items-start'}`}>
+                             {showHeader && <span className="text-[9px] font-bold text-gray-400 mb-1 px-1 uppercase">{msg.senderName}</span>}
                              <div className={`
-                                 relative px-4 py-2 text-[14px] sm:text-[15px] leading-relaxed shadow-sm
-                                 ${isMe 
-                                     ? 'bg-blue-600 text-white rounded-[20px] rounded-br-[4px]' 
-                                     : 'bg-white text-slate-700 rounded-[20px] rounded-bl-[4px] border border-gray-100'}
+                                 px-4 py-2.5 shadow-sm
+                                 ${isMe ? 'bg-blue-600 text-white rounded-[20px] rounded-br-[4px]' : 'bg-white text-slate-700 rounded-[20px] rounded-bl-[4px] border border-gray-100'}
                              `}>
-                                {msg.image && <img src={msg.image} className="max-w-full h-auto rounded-lg mb-2 border border-black/5 shadow-sm" />}
-                                <div className="break-words">
-                                    {renderMessageContent(msg.text)}
-                                </div>
+                                {renderMessageContent(msg.text)}
                              </div>
-                             <div className="text-[8px] sm:text-[9px] text-gray-300 mt-1 px-1">
-                                {msg.timestamp.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
-                             </div>
+                             <div className="text-[8px] text-gray-300 mt-1">{msg.timestamp.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
                         </div>
                     </div>
                 )
             })}
-            
-            {isTyping && (
-                <div className="flex items-center gap-2 ml-10">
-                    <div className="flex space-x-1 bg-white px-3 py-1.5 rounded-full shadow-sm border border-gray-50">
-                        <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-blue-400 rounded-full animate-bounce"></div>
-                        <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-blue-400 rounded-full animate-bounce delay-75"></div>
-                        <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-blue-400 rounded-full animate-bounce delay-150"></div>
-                    </div>
-                </div>
-            )}
-            <div ref={messagesEndRef} className="h-4 shrink-0" />
+            {isTyping && <div className="ml-10 bg-white px-3 py-1.5 rounded-full w-fit shadow-sm border border-gray-50 animate-pulse text-[10px] text-blue-500 font-bold">Yazıyor...</div>}
+            <div ref={messagesEndRef} className="h-4" />
          </div>
 
-         {/* Mesaj Giriş Kutusu - Tam Bütünleşik */}
-         <div className="bg-white border-t border-gray-100 shrink-0 relative z-40">
-             <div className="max-w-4xl mx-auto p-2 sm:p-4">
+         {/* ZENGİN METİN GİRİŞ ALANI */}
+         <div className="bg-white border-t border-gray-100 p-2 sm:p-4 relative z-40">
+             <div className="max-w-4xl mx-auto">
                  
-                 {/* Emoji Paneli */}
                  {showEmojiPicker && (
-                    <div className="absolute bottom-full left-4 md:left-8 mb-4 bg-white border border-gray-200 shadow-[0_20px_60px_rgba(0,0,0,0.3)] rounded-2xl p-4 z-[999] w-64 md:w-[320px]">
-                        <div className="flex justify-between items-center mb-3 px-1 border-b border-gray-50 pb-2">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Genişletilmiş Emoji Listesi</span>
-                            <button onClick={() => setShowEmojiPicker(false)} className="text-gray-300 hover:text-gray-600">✕</button>
-                        </div>
-                        <div className="grid grid-cols-8 gap-1 max-h-60 overflow-y-auto scrollbar-hide">
+                    <div className="absolute bottom-full left-4 mb-4 bg-white border border-gray-200 shadow-2xl rounded-2xl p-4 z-[999] w-72">
+                        <div className="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto">
                             {EMOJIS.map(e => (
-                                <button 
-                                    key={e} 
-                                    onClick={() => insertEmoji(e)}
-                                    onMouseDown={(e) => e.preventDefault()}
-                                    className="p-2 hover:bg-blue-50 rounded-lg text-xl leading-none transition-all hover:scale-125"
-                                >
-                                    {e}
-                                </button>
+                                <button key={e} onClick={() => insertEmoji(e)} className="p-1.5 hover:bg-blue-50 rounded text-xl">{e}</button>
                             ))}
                         </div>
                     </div>
                  )}
 
-                 <div className="flex flex-col border border-gray-200 rounded-2xl overflow-hidden focus-within:ring-4 focus-within:ring-blue-50 focus-within:border-blue-400 transition-all bg-white shadow-xl shadow-gray-100">
-                    
-                    {/* Rich Text Toolbar - Giriş Kutusu ile birleşik */}
-                    <div className="flex items-center gap-1 px-3 py-2 border-b border-gray-100 bg-gray-50/50">
-                        <button 
-                            onMouseDown={(e) => { e.preventDefault(); insertFormat('**'); }}
-                            className="w-10 h-9 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-700 font-bold text-sm transition-all"
-                            title="Kalın"
-                        >B</button>
-                        <button 
-                            onMouseDown={(e) => { e.preventDefault(); insertFormat('_'); }}
-                            className="w-10 h-9 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-700 italic text-sm transition-all"
-                            title="İtalik"
-                        >I</button>
-                        <button 
-                            onMouseDown={(e) => { e.preventDefault(); insertFormat('<u>', '</u>'); }}
-                            className="w-10 h-9 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-700 underline text-sm transition-all"
-                            title="Altı Çizili"
-                        >U</button>
-                        <div className="w-px h-5 bg-gray-200 mx-2"></div>
-                        <button 
-                            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                            onMouseDown={(e) => e.preventDefault()}
-                            className={`w-10 h-9 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-xl transition-all ${showEmojiPicker ? 'bg-white shadow-sm' : ''}`}
-                            title="Emoji Paneli"
-                        >😊</button>
+                 <div className="flex flex-col border border-gray-200 rounded-2xl overflow-hidden focus-within:border-blue-400 transition-all bg-white shadow-sm">
+                    {/* ARAÇ ÇUBUĞU */}
+                    <div className="flex items-center gap-1 px-3 py-2 border-b border-gray-50 bg-gray-50/50">
+                        <button onMouseDown={(e) => { e.preventDefault(); execCommand('bold'); }} className="w-8 h-8 rounded hover:bg-white hover:shadow-sm font-bold">B</button>
+                        <button onMouseDown={(e) => { e.preventDefault(); execCommand('italic'); }} className="w-8 h-8 rounded hover:bg-white hover:shadow-sm italic">I</button>
+                        <button onMouseDown={(e) => { e.preventDefault(); execCommand('underline'); }} className="w-8 h-8 rounded hover:bg-white hover:shadow-sm underline">U</button>
+                        <div className="w-px h-4 bg-gray-200 mx-1"></div>
+                        <button onMouseDown={(e) => { e.preventDefault(); setShowEmojiPicker(!showEmojiPicker); }} className="w-8 h-8 rounded hover:bg-white hover:shadow-sm">😊</button>
                     </div>
 
-                    {/* Yazma Alanı */}
-                    <div className="px-4 py-3 sm:py-4 flex items-center gap-3">
-                        <form onSubmit={handleSendMessage} className="flex-1">
-                            <input 
-                                ref={inputRef}
-                                value={inputText}
-                                onChange={e => setInputText(e.target.value)}
-                                className="w-full bg-transparent text-[15px] sm:text-[16px] text-slate-800 outline-none py-1 placeholder:text-gray-300"
-                                placeholder="Mesajınızı gönderin..."
-                                autoComplete="off"
-                            />
-                        </form>
+                    {/* DÜZENLENEBİLİR ALAN */}
+                    <div className="flex items-center gap-2 p-3">
+                        <div
+                            ref={editorRef}
+                            contentEditable
+                            className="flex-1 min-h-[40px] max-h-[150px] overflow-y-auto outline-none text-[15px] text-slate-700 px-1 py-1"
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSendMessage();
+                                }
+                            }}
+                        />
                         <button 
-                            type="button"
-                            onClick={() => handleSendMessage()}
-                            onMouseDown={(e) => e.preventDefault()} 
-                            disabled={!inputText.trim() && !selectedImage}
-                            className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center transition-all shadow-md active:scale-90 disabled:opacity-40 disabled:bg-gray-300 shrink-0"
+                            onClick={handleSendMessage}
+                            className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center transition-all shadow active:scale-95 shrink-0"
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6" viewBox="0 0 20 20" fill="currentColor">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                 <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
                             </svg>
                         </button>
                     </div>
                  </div>
-                 
-                 <div className="mt-2 flex justify-between items-center px-1">
-                    <p className="text-[10px] text-gray-400 font-medium">
-                        Stil butonları Markdown formatı ekler, gönderdiğinizde şık görünür.
-                    </p>
-                 </div>
+                 <p className="text-[10px] text-gray-400 mt-2 px-1">Artık yazarken stiliniz anında görünür, yıldızlarla uğraşmanıza gerek yok!</p>
              </div>
          </div>
       </div>
-      <UserListSidebar />
+      
+      {/* ÜYE LİSTESİ */}
+      <div className="hidden sm:flex flex-col w-64 border-l border-gray-100 bg-white p-4">
+          <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Üyeler</h3>
+          <div className="space-y-3 overflow-y-auto">
+              {displayUsers.map(u => (
+                  <div key={u.id} className="flex items-center gap-3">
+                      <img src={u.avatar} className="w-8 h-8 rounded-full object-cover" />
+                      <div className="min-w-0">
+                          <p className="text-sm font-bold text-slate-700 truncate">{u.name}</p>
+                          <p className="text-[10px] text-gray-400 uppercase">{u.isBot ? 'Bot' : 'İnsan'}</p>
+                      </div>
+                  </div>
+              ))}
+          </div>
+      </div>
     </div>
   );
 };
