@@ -127,18 +127,25 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     e?.preventDefault();
     if ((!inputText.trim() && !selectedImage) || isBlocked) return;
 
+    const currentInput = inputText;
     const userMsgPayload: Omit<Message, 'id'> = {
       senderId: currentUser.id,
       senderName: currentUser.name,
       senderAvatar: currentUser.avatar,
-      text: inputText,
+      text: currentInput,
       image: selectedImage || undefined,
       timestamp: new Date(),
       isUser: true,
     };
 
+    // Reset input states immediately
     setInputText('');
     setSelectedImage(null);
+    
+    // CRITICAL: Force re-focus immediately to keep mobile keyboard open
+    if (inputRef.current) {
+        inputRef.current.focus();
+    }
     
     try {
       await sendMessageToPb(userMsgPayload, currentRoomId);
@@ -196,13 +203,11 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                         ${user.id === currentUser.id ? 'bg-blue-50/50' : 'hover:bg-gray-50'}
                     `}
                 >
-                    {/* Avatar only on Desktop */}
                     <div className="relative shrink-0 hidden sm:block">
                         <img src={user.avatar} className="w-10 h-10 rounded-full bg-gray-100 object-cover shadow-sm" />
                         <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${user.isBot ? 'bg-blue-400' : 'bg-green-400'}`}></div>
                     </div>
 
-                    {/* Status Dot for Mobile Only */}
                     <div className={`sm:hidden w-1.5 h-1.5 shrink-0 rounded-full ${user.isBot ? 'bg-blue-400' : 'bg-green-400'}`}></div>
 
                     <div className="min-w-0 overflow-hidden text-center sm:text-left">
@@ -230,7 +235,6 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                  <h2 className="text-xs sm:text-sm font-bold text-slate-800 truncate">{title || topic}</h2>
                  <p className="text-[9px] sm:text-[10px] text-gray-400 truncate">{topic}</p>
              </div>
-             {/* Removed the Toggle Button as User List is now Permanent */}
          </div>
 
          {/* Messages Area */}
@@ -297,14 +301,23 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                             ref={inputRef}
                             value={inputText}
                             onChange={e => setInputText(e.target.value)}
+                            onBlur={(e) => {
+                                // Prevent loss of focus if accidental blur happens on some devices
+                                if (inputText.length > 0) {
+                                    // inputRef.current?.focus(); 
+                                }
+                            }}
                             className="w-full bg-transparent text-xs sm:text-sm text-slate-700 outline-none py-1"
                             placeholder="Mesaj..."
+                            autoComplete="off"
                          />
                      </form>
                  </div>
 
                  <button 
+                    type="button"
                     onClick={() => handleSendMessage()}
+                    onMouseDown={(e) => e.preventDefault()} // Prevent button from stealing focus
                     disabled={!inputText.trim() && !selectedImage}
                     className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-600 text-white flex items-center justify-center transition-all shadow-md active:scale-90 disabled:opacity-50 disabled:bg-gray-400 shrink-0"
                  >
