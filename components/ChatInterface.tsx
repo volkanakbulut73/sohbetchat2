@@ -1,7 +1,9 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Message } from '../types.ts';
 import { generateGroupResponse } from '../services/geminiService.ts';
-import { pb, sendMessageToPb, getRoomMessages } from '../services/pocketbase.ts';
+import { generateSocratesResponse } from '../services/grokService.ts';
+import { pb, sendMessageToPb, getRoomMessages, getAllUsers } from '../services/pocketbase.ts';
 
 interface AiChatModuleProps {
   currentUser: User;           
@@ -38,6 +40,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [displayUsers, setDisplayUsers] = useState<User[]>([]);
+  const [humanUsers, setHumanUsers] = useState<User[]>([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -57,6 +60,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     }
   };
 
+  // Mesaj Geçmişi ve Mesaj Aboneliği
   useEffect(() => {
     const loadHistory = async () => {
         const history = await getRoomMessages(currentRoomId);
@@ -87,12 +91,42 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     return () => { pb.collection('messages').unsubscribe('*'); };
   }, [currentRoomId, currentUser]);
 
+  // Kullanıcı Listesi ve Kullanıcı Aboneliği
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const users = await getAllUsers();
+      setHumanUsers(users);
+    };
+
+    fetchUsers();
+
+    // Yeni kullanıcılar kayıt olduğunda listeyi güncelle
+    const unsubscribe = pb.collection('users').subscribe('*', (e) => {
+      fetchUsers();
+    });
+
+    return () => { pb.collection('users').unsubscribe('*'); };
+  }, []);
+
+  // Botlar, Mevcut Kullanıcı ve Diğer İnsanları Birleştir
   useEffect(() => {
     const uniqueUsers = new Map<string, User>();
-    uniqueUsers.set(currentUser.id, currentUser);
+    
+    // 1. Botları ekle
     participants.forEach(p => uniqueUsers.set(p.id, p));
+    
+    // 2. Diğer insanları ekle
+    humanUsers.forEach(u => {
+      if (!uniqueUsers.has(u.id)) {
+        uniqueUsers.set(u.id, u);
+      }
+    });
+
+    // 3. Kendimi ekle (her ihtimale karşı listenin başında veya sonunda olsun diye)
+    uniqueUsers.set(currentUser.id, currentUser);
+
     setDisplayUsers(Array.from(uniqueUsers.values()));
-  }, [currentUser, participants]);
+  }, [currentUser, participants, humanUsers]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -133,13 +167,12 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     setShowEmojiPicker(false);
     
     try {
-      // Önce kullanıcının mesajını gönder
       await sendMessageToPb(userMsgPayload, currentRoomId);
       
-      // Botları düşünmeye başlat
       setIsTyping(true);
+      const currentMessages = [...messages, { ...userMsgPayload, id: 'temp' }];
       const botResponses = await generateGroupResponse(
-        [...messages, { ...userMsgPayload, id: 'temp' }], 
+        currentMessages, 
         participants, 
         topic, 
         currentUser.name
@@ -150,12 +183,19 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
           const bot = participants.find((p) => p.id === resp.botId);
           if (bot) {
             setIsTyping(true);
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            let finalMessage = resp.message;
+            
+            if (bot.id === 'bot_socrates') {
+              finalMessage = await generateSocratesResponse(currentMessages, currentUser.name);
+            }
+
             await sendMessageToPb({
                 senderId: bot.id,
                 senderName: bot.name,
                 senderAvatar: bot.avatar,
-                text: resp.message,
+                text: finalMessage,
                 timestamp: new Date(),
                 isUser: false
             }, currentRoomId);
@@ -164,7 +204,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
       }
       setIsTyping(false);
     } catch (err) {
-      console.error("Mesaj gönderilirken hata oluştu:", err);
+      console.error("Hata:", err);
       setIsTyping(false);
     }
   };
@@ -180,7 +220,10 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
 
   return (
     <div className="flex h-full w-full bg-white overflow-hidden relative">
+      
+      {/* SOHBET ALANI */}
       <div className="flex-1 flex flex-col min-w-0 relative h-full border-r border-gray-50">
+         
          <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 bg-[#f8f9fa] touch-auto">
             {messages.map((msg, index) => {
                 const isMe = msg.senderId === currentUser.id;
@@ -269,18 +312,36 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
          </div>
       </div>
       
-      <div className="hidden sm:flex flex-col w-64 border-l border-gray-100 bg-white p-4">
-          <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Üyeler</h3>
-          <div className="space-y-3 overflow-y-auto">
-              {displayUsers.map(u => (
-                  <div key={u.id} className="flex items-center gap-3">
-                      <img src={u.avatar} className="w-8 h-8 rounded-full object-cover" />
-                      <div className="min-w-0">
-                          <p className="text-sm font-bold text-slate-700 truncate">{u.name}</p>
-                          <p className="text-[10px] text-gray-400 uppercase">{u.isBot ? 'Bot' : 'İnsan'}</p>
-                      </div>
-                  </div>
-              ))}
+      {/* KULLANICI LİSTESİ SIDEBAR */}
+      {/* Mobilde w-20 (80px), Masaüstünde w-64 (256px) - Her zaman görünür */}
+      <div className="w-20 sm:w-64 bg-white border-l border-gray-100 flex flex-col shrink-0 transition-all duration-300">
+          <div className="p-2 sm:p-4 flex-1 overflow-y-auto">
+            <h3 className="text-[8px] sm:text-[10px] font-black text-center sm:text-left text-gray-400 uppercase tracking-widest mb-2 sm:mb-4 truncate">
+                Üyeler <span className="hidden sm:inline">({displayUsers.length})</span>
+            </h3>
+            <div className="space-y-2 sm:space-y-3">
+                {displayUsers.map(u => (
+                    <div 
+                        key={u.id} 
+                        className="flex flex-col sm:flex-row items-center sm:gap-3 p-1 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer group"
+                        onDoubleClick={() => onUserDoubleClick?.(u)}
+                    >
+                        {/* Avatar: Mobilde gizle (hidden), sm ve üzerinde göster */}
+                        <img src={u.avatar} className="hidden sm:block w-8 h-8 rounded-full object-cover group-hover:ring-2 ring-blue-100 transition-all" />
+                        
+                        <div className="min-w-0 w-full text-center sm:text-left">
+                            {/* İsim: Mobilde 10px, Masaüstünde normal */}
+                            <p className={`text-[10px] sm:text-sm font-bold truncate ${u.id === currentUser.id ? 'text-blue-600' : 'text-slate-700'}`}>
+                                {u.name}
+                            </p>
+                            {/* Rol: Mobilde gizle, Masaüstünde göster */}
+                            <p className="hidden sm:block text-[10px] text-gray-400 uppercase tracking-tighter">
+                                {u.isBot ? 'Yapay Zeka' : 'İnsan'}
+                            </p>
+                        </div>
+                    </div>
+                ))}
+            </div>
           </div>
       </div>
     </div>

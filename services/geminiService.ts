@@ -1,5 +1,7 @@
-import { GoogleGenAI, Type } from "@google/genai";
+
+import { Type } from "@google/genai";
 import { Message, User, BotResponseItem } from "../types";
+import { sendAiRequest } from "./pocketbase";
 
 export const generateGroupResponse = async (
   messages: Message[],
@@ -7,14 +9,7 @@ export const generateGroupResponse = async (
   topic: string,
   userName: string
 ): Promise<BotResponseItem[]> => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    console.error("API Key bulunamadı.");
-    return [];
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
-
+  
   const bots = participants.filter((p) => p.isBot);
   if (bots.length === 0) return [];
 
@@ -22,11 +17,10 @@ export const generateGroupResponse = async (
     .map((b) => `- ${b.name} (ID: ${b.id}): ${b.role}`)
     .join("\n");
 
-  // AI'ya göndermeden önce HTML etiketlerini temizliyoruz (botlar karışmasın diye)
   const recentMessages = messages.slice(-15);
   const historyText = recentMessages
     .map((m) => {
-      const cleanText = m.text.replace(/<[^>]*>?/gm, ''); // HTML tag stripping
+      const cleanText = m.text.replace(/<[^>]*>?/gm, '');
       return `${m.senderName}: ${cleanText}${m.image ? " [RESİM]" : ""}`;
     })
     .join("\n");
@@ -39,17 +33,14 @@ export const generateGroupResponse = async (
     ${botDescriptions}
     
     ÖNEMLİ KURALLAR:
-    1. Botlar CANLI, etkileşimli ve kişiliklerine uygun (Atlas bilge, Luna teknoloji meraklısı, Gölge şüpheci, Cem komik) konuşmalıdır.
-    2. Cevaplar KESİNLİKE saf metin olmalı, HTML etiketi içermemelidir.
-    3. Kullanıcıya "${userName}" ismiyle hitap edebilirsin.
-    4. En fazla 2 botun cevabını üret.
+    1. Botlar CANLI, etkileşimli ve kişiliklerine uygun konuşmalıdır.
+    2. Sokrates (bot_socrates) antik bir filozoftur, her şeyi sorgular.
+    3. Cevaplar KESİNLİKE saf metin olmalı, HTML etiketi içermemelidir.
+    4. Kullanıcıya "${userName}" ismiyle hitap edebilirsin.
+    5. En fazla 2 botun cevabını üret.
     
     ÇIKTI FORMATI:
     Sadece JSON dizisi döndür.
-    Örnek:
-    [
-      { "botId": "bot_atlas", "message": "Merhaba ${userName}, nasılsın?" }
-    ]
   `;
 
   try {
@@ -68,31 +59,46 @@ export const generateGroupResponse = async (
         }
     }
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: [{ parts }],
-      config: {
-        systemInstruction: systemInstruction,
-        responseMimeType: "application/json",
-        temperature: 0.8,
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              botId: { type: Type.STRING },
-              message: { type: Type.STRING },
+    // Backend'e proxy isteği gönderiyoruz.
+    // Provider: 'gemini'
+    const response = await sendAiRequest({
+        provider: 'gemini',
+        model: "gemini-3-flash-preview",
+        contents: [{ parts }],
+        config: {
+            systemInstruction: systemInstruction,
+            responseMimeType: "application/json",
+            temperature: 0.8,
+            responseSchema: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                    botId: { type: Type.STRING },
+                    message: { type: Type.STRING },
+                    },
+                    required: ["botId", "message"],
+                },
             },
-            required: ["botId", "message"],
-          },
-        },
-      },
+        }
     });
 
-    const resultText = response.text;
+    // Backend'den gelen yanıtı parse et
+    // Backend doğrudan Gemini API yanıtını dönüyorsa, text 'candidates' içindedir.
+    // Ancak backend metni ayıklayıp { text: "..." } şeklinde de dönebilir.
+    // Burada güvenli bir erişim yapıyoruz.
+    
+    let resultText = "";
+    if (response && response.text) {
+        resultText = response.text;
+    } else if (response && response.candidates && response.candidates[0]?.content?.parts?.[0]?.text) {
+        resultText = response.candidates[0].content.parts[0].text;
+    } else if (typeof response === 'string') {
+        resultText = response;
+    }
+
     if (resultText) {
         try {
-            // JSON bloğu içindeyse temizle
             const cleanJson = resultText.replace(/```json/g, '').replace(/```/g, '').trim();
             const parsed = JSON.parse(cleanJson) as BotResponseItem[];
             return parsed.filter(item => bots.some(b => b.id === item.botId));
@@ -103,7 +109,7 @@ export const generateGroupResponse = async (
     }
     return [];
   } catch (error) {
-    console.error("Gemini API Hatası:", error);
+    console.error("Gemini AI Hatası (Backend Proxy):", error);
     return [];
   }
 };
