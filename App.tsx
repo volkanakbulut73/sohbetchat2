@@ -1,15 +1,77 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import JoinScreen from './components/JoinScreen.tsx';
 import AiChatModule from './components/ChatInterface.tsx';
 import { User, ChatRoom } from './types.ts';
 import { ROOMS } from './constants.ts';
-import { signOut } from './services/pocketbase.ts';
+import { pb, signOut } from './services/pocketbase.ts';
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [openTabs, setOpenTabs] = useState<ChatRoom[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [showChannelList, setShowChannelList] = useState(false);
+  const [unreadRoomIds, setUnreadRoomIds] = useState<Set<string>>(new Set());
+
+  // Global Realtime Subscription for incoming messages
+  useEffect(() => {
+    if (!user) return;
+
+    // Subscribe to all messages to catch private ones
+    const unsubscribe = pb.collection('messages').subscribe('*', (e) => {
+      if (e.action === 'create') {
+        const msg = e.record;
+        
+        // Check if it's a private message for ME (room ID contains my ID and is private)
+        if (msg.room.startsWith('private_') && msg.room.includes(user.id)) {
+          // If I am NOT the sender
+          if (msg.senderId !== user.id) {
+            
+            setOpenTabs(prev => {
+              const tabExists = prev.find(t => t.id === msg.room);
+              if (!tabExists) {
+                // Automatically create the tab for the recipient
+                const newPrivateRoom: ChatRoom = {
+                  id: msg.room,
+                  name: msg.senderName, // Name is the sender's name
+                  topic: 'Özel Sohbet',
+                  description: `${msg.senderName} ile özel sohbet`,
+                  participants: [{
+                    id: msg.senderId,
+                    name: msg.senderName,
+                    avatar: msg.senderAvatar,
+                    isBot: false
+                  }], 
+                  isPrivate: true
+                };
+                return [...prev, newPrivateRoom];
+              }
+              return prev;
+            });
+
+            // If the room is not currently active, mark as unread (flash red)
+            if (activeTabId !== msg.room) {
+              setUnreadRoomIds(prev => new Set(prev).add(msg.room));
+            }
+          }
+        }
+      }
+    });
+
+    return () => {
+      pb.collection('messages').unsubscribe('*');
+    };
+  }, [user, activeTabId]);
+
+  // Clear unread status when switching tabs
+  useEffect(() => {
+    if (activeTabId && unreadRoomIds.has(activeTabId)) {
+      setUnreadRoomIds(prev => {
+        const next = new Set(prev);
+        next.delete(activeTabId);
+        return next;
+      });
+    }
+  }, [activeTabId]);
 
   const handleJoin = (loggedInUser: User, room: ChatRoom) => {
     setUser(loggedInUser);
@@ -34,6 +96,11 @@ function App() {
     if (activeTabId === roomId) {
         setActiveTabId(newTabs.length > 0 ? newTabs[newTabs.length - 1].id : null);
     }
+    setUnreadRoomIds(prev => {
+        const next = new Set(prev);
+        next.delete(roomId);
+        return next;
+    });
   };
 
   const handleLogout = () => {
@@ -41,10 +108,12 @@ function App() {
     setUser(null);
     setOpenTabs([]);
     setActiveTabId(null);
+    setUnreadRoomIds(new Set());
   };
 
   const handleUserDoubleClick = (targetUser: User) => {
     if (!user || targetUser.id === user.id) return;
+    // Common private room ID pattern
     const privateRoomId = `private_${[user.id, targetUser.id].sort().join('_')}`;
     const existingTab = openTabs.find(t => t.id === privateRoomId);
     
@@ -100,13 +169,12 @@ function App() {
                   )}
               </div>
 
-              {/* Tabs and Radio Player */}
+              {/* Tabs */}
               <div className="flex items-center gap-2 md:gap-4 flex-1 overflow-hidden">
-                  {/* Tabs */}
                   <div className="flex items-center gap-1 border-l border-gray-100 pl-2 md:pl-4 overflow-x-auto scrollbar-hide">
                       {openTabs.map(tab => {
                           const isActive = activeTabId === tab.id;
-                          const isPrivateRequest = tab.isPrivate && !isActive;
+                          const hasUnread = unreadRoomIds.has(tab.id);
 
                           return (
                               <div 
@@ -119,14 +187,14 @@ function App() {
                                         : 'bg-transparent border-transparent text-gray-400 hover:text-gray-600'}
                                 `}
                               >
-                                  {isPrivateRequest && (
+                                  {hasUnread && (
                                       <span className="absolute -top-1 -right-1 flex h-3 w-3">
                                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                                           <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
                                       </span>
                                   )}
                                   
-                                  <span className={`text-xs font-bold truncate ${isPrivateRequest ? 'animate-flash-red' : ''}`}>
+                                  <span className={`text-xs font-bold truncate ${hasUnread ? 'animate-flash-red' : ''}`}>
                                       {tab.isPrivate ? '👤' : '#'} {tab.name}
                                   </span>
 
@@ -138,7 +206,7 @@ function App() {
                       })}
                   </div>
 
-                  {/* Online Radio Player */}
+                  {/* Radio Player */}
                   <div className="hidden lg:flex items-center justify-center border-l border-gray-100 pl-4 overflow-hidden shrink-0">
                     <div className="bg-[#f0f2f5] rounded-xl p-1 shadow-sm border border-gray-100 overflow-hidden flex items-center">
                       <iframe 
