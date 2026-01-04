@@ -157,7 +157,8 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     const before = text.substring(0, start);
     const after = text.substring(start);
     setInputText(before + emoji + after);
-    setShowEmojiPicker(false);
+    // Paneli açık tutmak isteyebiliriz, ama genelde bir emoji sonrası kapanması yaygındır.
+    // setShowEmojiPicker(false); 
     setTimeout(() => {
         inputRef.current?.focus();
         const newPos = start + emoji.length;
@@ -227,6 +228,19 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     }
   };
 
+  // Metni gerçek HTML formatına dönüştüren yardımcı fonksiyon
+  const renderFormattedText = (text: string) => {
+    let formatted = text;
+    // Kalın (**text**)
+    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+    // İtalik (_text_)
+    formatted = formatted.replace(/_(.*?)_/g, '<i>$1</i>');
+    // Altı Çizili (<u>text</u>) - Zaten HTML formatında geldiği için ek işlem gerekebilir ama basit kalsın
+    // formatted = formatted.replace(/<u>(.*?)<\/u>/g, '<u>$1</u>'); 
+
+    return <div dangerouslySetInnerHTML={{ __html: formatted }} />;
+  };
+
   const UserListSidebar = () => (
     <div className="relative z-20 w-24 sm:w-72 bg-white border-l border-gray-100 flex flex-col shrink-0">
         <div className="p-3 sm:p-4 border-b border-gray-50 shrink-0">
@@ -266,7 +280,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   return (
     <div className="flex h-full w-full bg-white overflow-hidden relative">
       <div className="flex-1 flex flex-col min-w-0 relative h-full border-r border-gray-50">
-         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-white/95 backdrop-blur-md z-10 shrink-0">
+         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-white/95 backdrop-blur-md z-30 shrink-0">
              <div className="min-w-0">
                  <h2 className="text-xs sm:text-sm font-bold text-slate-800 truncate">{title || topic}</h2>
                  <p className="text-[9px] sm:text-[10px] text-gray-400 truncate">{topic}</p>
@@ -302,7 +316,9 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                                      : 'bg-white text-slate-700 rounded-[18px] rounded-bl-[4px] border border-gray-100'}
                              `}>
                                 {msg.image && <img src={msg.image} className="max-w-full h-auto rounded-lg mb-2 border border-black/5 shadow-sm" />}
-                                <div className="whitespace-pre-wrap break-words">{msg.text}</div>
+                                <div className="whitespace-pre-wrap break-words">
+                                    {renderFormattedText(msg.text)}
+                                </div>
                              </div>
                              <div className="text-[8px] sm:text-[9px] text-gray-300 mt-1 px-1">
                                 {msg.timestamp.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
@@ -324,69 +340,69 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
             <div ref={messagesEndRef} className="h-4 shrink-0" />
          </div>
 
-         <div className="bg-white border-t border-gray-100 shrink-0 relative">
+         {/* Mesaj Giriş Alanı */}
+         <div className="bg-white border-t border-gray-100 shrink-0 relative z-40">
              <div className="max-w-4xl mx-auto p-2 sm:p-4">
                  
-                 {/* Integrated Input Container */}
-                 <div className="flex flex-col border border-gray-200 rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-300 transition-all bg-gray-50/50">
+                 {/* Emoji Paneli - Görünürlük için en dışta ve yüksek z-index ile */}
+                 {showEmojiPicker && (
+                    <div className="absolute bottom-[calc(100%-10px)] left-4 md:left-8 mb-4 bg-white border border-gray-200 shadow-[0_10px_40px_rgba(0,0,0,0.15)] rounded-2xl p-4 z-[999] w-64 md:w-80">
+                        <div className="flex justify-between items-center mb-2 px-1">
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Emoji Seç</span>
+                            <button onClick={() => setShowEmojiPicker(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+                        </div>
+                        <div className="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto scrollbar-hide">
+                            {EMOJIS.map(e => (
+                                <button 
+                                    key={e} 
+                                    onClick={() => insertEmoji(e)}
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    className="p-1.5 hover:bg-blue-50 rounded text-xl leading-none transition-all hover:scale-125"
+                                >
+                                    {e}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                 )}
+
+                 <div className="flex flex-col border border-gray-200 rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-300 transition-all bg-white shadow-sm">
                     
-                    {/* Integrated Toolbar - At the top of the box */}
-                    <div className="flex items-center gap-1 px-3 py-2 border-b border-gray-100 bg-white">
+                    {/* Integrated Toolbar */}
+                    <div className="flex items-center gap-1 px-3 py-2 border-b border-gray-50 bg-gray-50/30">
                         <button 
                             onMouseDown={(e) => { e.preventDefault(); insertFormat('**'); }}
-                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-slate-600 font-bold text-xs"
+                            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-700 font-bold text-sm transition-all active:bg-gray-100"
                             title="Kalın"
                         >B</button>
                         <button 
                             onMouseDown={(e) => { e.preventDefault(); insertFormat('_'); }}
-                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-slate-600 italic text-xs"
+                            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-700 italic text-sm transition-all active:bg-gray-100"
                             title="İtalik"
                         >I</button>
                         <button 
                             onMouseDown={(e) => { e.preventDefault(); insertFormat('<u>', '</u>'); }}
-                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-slate-600 underline text-xs"
+                            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-700 underline text-sm transition-all active:bg-gray-100"
                             title="Altı Çizili"
                         >U</button>
                         <div className="w-px h-4 bg-gray-200 mx-1"></div>
-                        <div className="relative">
-                            <button 
-                                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                                onMouseDown={(e) => e.preventDefault()}
-                                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-slate-600 text-sm"
-                                title="Emoji Seç"
-                            >😊</button>
-                            
-                            {showEmojiPicker && (
-                                <div className="absolute bottom-full mb-3 left-0 bg-white border border-gray-200 shadow-2xl rounded-2xl p-3 z-[100] w-64 md:w-72">
-                                    <div className="grid grid-cols-8 gap-1">
-                                        {EMOJIS.map(e => (
-                                            <button 
-                                                key={e} 
-                                                onClick={() => insertEmoji(e)}
-                                                onMouseDown={(e) => e.preventDefault()}
-                                                className="p-1.5 hover:bg-blue-50 rounded text-xl leading-none transition-colors"
-                                            >
-                                                {e}
-                                            </button>
-                                        ))}
-                                    </div>
-                                    <div className="mt-2 pt-2 border-t border-gray-50 text-[10px] text-gray-400 font-bold text-center uppercase tracking-widest">
-                                        Emoji Paneli
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                        <button 
+                            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                            onMouseDown={(e) => e.preventDefault()}
+                            className={`w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-lg transition-all ${showEmojiPicker ? 'bg-white shadow-sm' : ''}`}
+                            title="Emoji Paneli"
+                        >😊</button>
                     </div>
 
                     {/* Actual Input Row */}
-                    <div className="px-3 sm:px-4 py-2 sm:py-3 flex items-center gap-2 bg-white/50">
+                    <div className="px-3 sm:px-4 py-2 sm:py-3 flex items-center gap-2">
                         <form onSubmit={handleSendMessage} className="flex-1">
                             <input 
                                 ref={inputRef}
                                 value={inputText}
                                 onChange={e => setInputText(e.target.value)}
-                                className="w-full bg-transparent text-[13px] sm:text-[14px] text-slate-700 outline-none py-1"
-                                placeholder="Bir şeyler yazın..."
+                                className="w-full bg-transparent text-[14px] sm:text-[15px] text-slate-700 outline-none py-1.5"
+                                placeholder="Mesajınızı buraya yazın..."
                                 autoComplete="off"
                             />
                         </form>
@@ -395,9 +411,9 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                             onClick={() => handleSendMessage()}
                             onMouseDown={(e) => e.preventDefault()} 
                             disabled={!inputText.trim() && !selectedImage}
-                            className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-600 text-white flex items-center justify-center transition-all shadow-md active:scale-90 disabled:opacity-50 disabled:bg-gray-400 shrink-0"
+                            className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-blue-600 text-white flex items-center justify-center transition-all shadow-md active:scale-90 disabled:opacity-50 disabled:bg-gray-300 shrink-0"
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6" viewBox="0 0 20 20" fill="currentColor">
                                 <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
                             </svg>
                         </button>
