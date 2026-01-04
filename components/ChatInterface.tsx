@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Message } from '../types';
-import { generateGroupResponse } from '../services/geminiService';
-import { pb, sendMessageToPb, getRoomMessages } from '../services/pocketbase';
+import { User, Message } from '../types.ts';
+import { generateGroupResponse } from '../services/geminiService.ts';
+import { pb, sendMessageToPb, getRoomMessages } from '../services/pocketbase.ts';
 
 /**
  * AiChatModule Props

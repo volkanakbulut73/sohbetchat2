@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { ROOMS } from '../constants';
-import { ChatRoom } from '../types';
-import { loginOrRegister } from '../services/pocketbase';
+import { ROOMS } from '../constants.ts';
+import { ChatRoom } from '../types.ts';
+import { loginOrRegister } from '../services/pocketbase.ts';
 
 interface JoinScreenProps {
   onJoin: (user: any, room: ChatRoom) => void;
@@ -40,7 +40,7 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
         }
     } catch (err: any) {
         console.error(err);
-        setError("Giriş yapılamadı. PocketBase sunucusu ile iletişim kurulamadı. Lütfen sunucu adresini ve Mixed Content (HTTP/HTTPS) ayarlarını kontrol edin.");
+        setError("Giriş yapılamadı. PocketBase sunucusu ile iletişim kurulamadı. Eğer siteniz HTTPS ise, adres çubuğundan HTTP yaparak tekrar deneyin (Mixed Content hatası).");
     } finally {
         setIsLoading(false);
     }

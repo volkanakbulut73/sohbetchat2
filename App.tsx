@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import JoinScreen from './components/JoinScreen';
-import AiChatModule from './components/ChatInterface';
-import { User, ChatRoom } from './types';
-import { signOut } from './services/pocketbase';
+import React, { useState, useEffect } from 'react';
+import JoinScreen from './components/JoinScreen.tsx';
+import AiChatModule from './components/ChatInterface.tsx';
+import { User, ChatRoom } from './types.ts';
+import { signOut } from './services/pocketbase.ts';
 
 /**
  * Bu "App" bileşeni, AiChatModule'ü entegre eden ana uygulamayı temsil eder.
@@ -11,6 +11,20 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [activeRoom, setActiveRoom] = useState<ChatRoom | null>(null);
   const [blockedBotIds, setBlockedBotIds] = useState<Set<string>>(new Set());
+  const [protocolError, setProtocolError] = useState<boolean>(false);
+
+  useEffect(() => {
+    // Mixed Content Kontrolü
+    // Eğer sayfa HTTPS ise ama PocketBase HTTP ise tarayıcı bloklar.
+    if (window.location.protocol === 'https:') {
+        // PocketBase URL'imiz http://72.62.178.90:8090 olduğu için uyarı vermeliyiz.
+        // Gerçek PB URL'ini services/pocketbase.ts'den alamadığımız durumlar için buraya manuel kontrol koyuyoruz.
+        const pbIsHttp = true; // IP adresi olduğu için HTTP.
+        if (pbIsHttp) {
+            setProtocolError(true);
+        }
+    }
+  }, []);
 
   // Kullanıcı PocketBase ile giriş yapınca tetiklenir
   const handleJoin = (loggedInUser: User, room: ChatRoom) => {
@@ -56,6 +70,35 @@ function App() {
         return newSet;
     });
   };
+
+  if (protocolError) {
+    return (
+        <div className="h-screen w-full flex items-center justify-center bg-gray-900 text-white p-4">
+            <div className="max-w-lg text-center bg-gray-800 p-8 rounded-xl shadow-2xl border border-red-500">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-red-500 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <h1 className="text-2xl font-bold mb-4">Güvenlik Bağlantısı Hatası</h1>
+                <p className="text-gray-300 mb-6">
+                    Bu uygulama şu anda <strong>HTTPS</strong> (Güvenli) üzerinden çalışıyor ancak veritabanı sunucusu <strong>HTTP</strong> (72.62.178.90) kullanıyor.
+                </p>
+                <div className="bg-black/30 p-4 rounded text-left text-sm text-gray-400 mb-6">
+                    Modern tarayıcılar, güvenli sayfalardan (https) güvensiz sunuculara (http) bağlanmayı engeller (Mixed Content Block).
+                </div>
+                <h3 className="font-bold text-lg mb-2">Çözüm:</h3>
+                <p className="mb-6">
+                    Lütfen tarayıcınızın adres çubuğundaki <code className="bg-gray-700 px-1 rounded">https://</code> kısmını <code className="bg-green-600 text-white px-1 rounded">http://</code> yaparak sayfayı yeniden yükleyin.
+                </p>
+                <a 
+                   href={window.location.href.replace('https:', 'http:')}
+                   className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+                >
+                    HTTP Sürümüne Git
+                </a>
+            </div>
+        </div>
+    );
+  }
 
   // Eğer kullanıcı giriş yapmamışsa (login ekranı)
   if (!user) {
