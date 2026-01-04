@@ -49,7 +49,9 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    audioRef.current = new Audio('https://cdn.pixabay.com/audio/2022/03/24/audio_73b3780373.mp3'); 
+    // Pixabay 403 hatasını önlemek için alternatif kaynak.
+    // Prodüksiyon için bu dosyayı sunucunuza indirip '/sounds/notify.mp3' gibi bir yoldan sunmanız önerilir.
+    audioRef.current = new Audio('https://media.geeksforgeeks.org/wp-content/uploads/20190531135120/beep.mp3'); 
     audioRef.current.volume = 0.5;
   }, []);
 
@@ -108,25 +110,53 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     return () => { pb.collection('users').unsubscribe('*'); };
   }, []);
 
-  // Botlar, Mevcut Kullanıcı ve Diğer İnsanları Birleştir
+  // Botlar, Mevcut Kullanıcı, Diğer İnsanlar ve Mesaj Gönderenleri Birleştir
   useEffect(() => {
     const uniqueUsers = new Map<string, User>();
     
-    // 1. Botları ekle
+    // 1. Önce Botları ekle
     participants.forEach(p => uniqueUsers.set(p.id, p));
     
-    // 2. Diğer insanları ekle
-    humanUsers.forEach(u => {
-      if (!uniqueUsers.has(u.id)) {
-        uniqueUsers.set(u.id, u);
-      }
+    // 2. Mesaj geçmişindeki kullanıcıları ekle (Sohbet edenler görünmeli, liste boş gelse bile)
+    messages.forEach(m => {
+       if (!uniqueUsers.has(m.senderId)) {
+           // Mesajı atan kişi bot mu?
+           const knownBot = participants.find(p => p.id === m.senderId);
+           if (knownBot) {
+               uniqueUsers.set(m.senderId, knownBot);
+           } else {
+               // İnsan kullanıcısı
+               uniqueUsers.set(m.senderId, {
+                   id: m.senderId,
+                   name: m.senderName,
+                   avatar: m.senderAvatar,
+                   isBot: false
+               });
+           }
+       }
     });
 
-    // 3. Kendimi ekle (her ihtimale karşı listenin başında veya sonunda olsun diye)
+    // 3. API'den gelen insanları ekle (Varsa üzerine yazar, bilgiler daha güncel olabilir)
+    humanUsers.forEach(u => {
+      uniqueUsers.set(u.id, u);
+    });
+
+    // 4. Kendimi ekle
     uniqueUsers.set(currentUser.id, currentUser);
 
-    setDisplayUsers(Array.from(uniqueUsers.values()));
-  }, [currentUser, participants, humanUsers]);
+    // Sıralama: Ben -> Botlar -> İnsanlar
+    const sortedUsers = Array.from(uniqueUsers.values()).sort((a, b) => {
+        if (a.id === currentUser.id) return -1;
+        if (b.id === currentUser.id) return 1;
+        
+        if (a.isBot && !b.isBot) return -1;
+        if (!a.isBot && b.isBot) return 1;
+        
+        return a.name.localeCompare(b.name);
+    });
+
+    setDisplayUsers(sortedUsers);
+  }, [currentUser, participants, humanUsers, messages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
