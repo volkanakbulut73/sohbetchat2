@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ROOMS } from '../constants';
 import { ChatRoom } from '../types';
-import { loginOrRegister } from '../services/pocketbase.ts';
+import { loginOrRegister } from '../services/pocketbase';
 
 interface JoinScreenProps {
   onJoin: (user: any, room: ChatRoom) => void;
@@ -26,8 +26,6 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
         const room = ROOMS.find(r => r.id === selectedRoomId);
         if (room && userRecord) {
             // PB user record'unu bizim app user formatına uyarla.
-            // Eğer PB'den avatar gelmezse (ki gelmeyecek çünkü file upload yapmadık),
-            // Picsum'dan seed ile avatar üret.
             const avatarUrl = (userRecord.avatar && userRecord.avatar.startsWith('http')) 
                 ? userRecord.avatar 
                 : `https://picsum.photos/seed/${userRecord.id}/200/200`;
@@ -42,7 +40,7 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
         }
     } catch (err: any) {
         console.error(err);
-        setError("Giriş yapılamadı. PocketBase sunucusunun çalıştığından (http://72.62.178.90:8090) ve 'users' koleksiyonunun erişilebilir olduğundan emin olun.");
+        setError("Giriş yapılamadı. PocketBase sunucusu ile iletişim kurulamadı. Lütfen sunucu adresini ve Mixed Content (HTTP/HTTPS) ayarlarını kontrol edin.");
     } finally {
         setIsLoading(false);
     }

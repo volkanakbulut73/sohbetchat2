@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import JoinScreen from './components/JoinScreen';
 import AiChatModule from './components/ChatInterface';
 import { User, ChatRoom } from './types';
-import { signOut } from './services/pocketbase.ts';
+import { signOut } from './services/pocketbase';
 
 /**
  * Bu "App" bileşeni, AiChatModule'ü entegre eden ana uygulamayı temsil eder.
@@ -31,9 +31,6 @@ function App() {
   const handleUserDoubleClick = (targetUser: User) => {
     if (!user || targetUser.id === user.id) return;
 
-    // Geçici bir "Özel Oda" oluştur
-    // Not: Gerçek bir uygulamada bu odayı da DB'de oluşturmak gerekir.
-    // Şimdilik demo olduğu için ID'sini oluşturup props olarak geçeceğiz.
     const privateRoomId = `private_${[user.id, targetUser.id].sort().join('_')}`;
     
     const privateRoom: ChatRoom = {
@@ -65,7 +62,6 @@ function App() {
     return <JoinScreen onJoin={handleJoin} />;
   }
 
-  // Şu anki odada, tek bir katılımcı varsa ve bu bot ise, engelli mi diye kontrol et
   const isCurrentPeerBlocked = activeRoom?.isPrivate && activeRoom.participants.length > 0 
     ? blockedBotIds.has(activeRoom.participants[0].id)
     : false;
