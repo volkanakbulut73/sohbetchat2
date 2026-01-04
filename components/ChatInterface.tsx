@@ -86,7 +86,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     };
     loadHistory();
 
-    pb.collection('messages').subscribe('*', function (e) {
+    const unsubscribe = pb.collection('messages').subscribe('*', function (e) {
         if (e.action === 'create' && e.record.room === currentRoomId) {
             setMessages(prev => {
                 if (prev.some(m => m.id === e.record.id)) return prev;
@@ -151,18 +151,31 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     setSelectedImage(null);
     
     try {
+      // Önce kullanıcının mesajını gönder
       await sendMessageToPb(userMsgPayload, currentRoomId);
+      
+      // Botların cevap vermesi için kısa bir bekleme
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       setIsTyping(true);
-      const botResponses = await generateGroupResponse([...messages, { ...userMsgPayload, id: 'temp' }], participants, topic, currentUser.name);
+      const botResponses = await generateGroupResponse(
+        [...messages, { ...userMsgPayload, id: 'temp' }], 
+        participants, 
+        topic, 
+        currentUser.name
+      );
       setIsTyping(false);
 
-      if (botResponses.length > 0) {
+      if (botResponses && botResponses.length > 0) {
         for (const resp of botResponses) {
           const bot = participants.find((p) => p.id === resp.botId);
           if (bot) {
             setIsTyping(true);
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            // Botun "yazıyor" efekti için mesaj uzunluğuna göre bekleme
+            const typingSpeed = Math.min(2000, Math.max(1000, resp.message.length * 30));
+            await new Promise(resolve => setTimeout(resolve, typingSpeed));
             setIsTyping(false);
+            
             await sendMessageToPb({
                 senderId: bot.id,
                 senderName: bot.name,
@@ -175,7 +188,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
         }
       }
     } catch (err) {
-      console.error(err);
+      console.error("Mesajlaşma döngüsü hatası:", err);
       setIsTyping(false);
     }
   };
