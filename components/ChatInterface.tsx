@@ -66,7 +66,6 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
         if (e.action === 'create' && e.record.room === currentRoomId) {
             setMessages(prev => {
                 if (prev.some(m => m.id === e.record.id)) return prev;
-                // Not: Ses çalma özelliği kaldırıldı.
                 const newMsg: Message = {
                     id: e.record.id,
                     senderId: e.record.senderId,
@@ -191,7 +190,16 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     if (!isPrivate) return; 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      
+      // Desteklenen MIME türünü belirle (Safari vs Chrome uyumluluğu için)
+      let mimeType = 'audio/webm';
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+          mimeType = 'audio/webm;codecs=opus';
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+          mimeType = 'audio/mp4';
+      }
+
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -202,7 +210,15 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        // Blob oluştur ve MIME türünü koru
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        
+        // Boş kayıtları engelle
+        if (audioBlob.size < 100) {
+             stream.getTracks().forEach(track => track.stop());
+             return;
+        }
+
         const reader = new FileReader();
         reader.readAsDataURL(audioBlob);
         reader.onloadend = async () => {
@@ -218,7 +234,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
       setIsRecording(true);
     } catch (err) {
       console.error("Mikrofon hatası:", err);
-      alert("Mikrofon erişimi sağlanamadı.");
+      alert("Mikrofon erişimi sağlanamadı veya tarayıcı desteklemiyor.");
     }
   };
 
@@ -257,8 +273,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
     try {
       await sendMessageToPb(userMsgPayload, currentRoomId);
       
-      // Bot mantığı sadece sesli mesaj dışındaki durumlarda veya botların ses algılaması eklenirse çalışabilir.
-      // Şimdilik sadece text/resim durumunda botları tetikliyoruz.
+      // Bot mantığı sadece sesli mesaj dışındaki durumlarda çalışır
       if (!audioData) {
           setIsTyping(true);
           const currentMessages = [...messages, { ...userMsgPayload, id: 'temp' }];
@@ -309,13 +324,20 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                 <img src={msg.image} alt="Paylaşılan Görsel" className="max-w-full rounded-lg max-h-64 object-cover border border-white/20" />
             </div>
          )}
-         {msg.audio && (
-            <div className="mb-2 flex items-center gap-2 min-w-[200px]">
-                <audio controls src={msg.audio} className="w-full h-8 rounded-lg" />
+         {msg.audio ? (
+            <div className="mb-1 flex items-center justify-center bg-gray-100/50 rounded-lg p-1 min-w-[240px]">
+                <audio 
+                    controls 
+                    playsInline 
+                    src={msg.audio} 
+                    className="w-full h-10 rounded-lg outline-none" 
+                    key={msg.id} // Re-render on id change
+                />
             </div>
+         ) : (
+            <div dangerouslySetInnerHTML={{ __html: msg.text }} />
          )}
-         {!msg.audio && <div dangerouslySetInnerHTML={{ __html: msg.text }} />}
-         {msg.audio && <div className="text-xs opacity-70 italic mt-1">Sesli Mesaj</div>}
+         {msg.audio && <div className="text-[10px] opacity-60 font-bold uppercase tracking-wider mt-1 text-right">Sesli Mesaj</div>}
       </div>
     );
   };
