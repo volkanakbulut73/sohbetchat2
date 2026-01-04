@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Message } from '../types.ts';
 import { generateGroupResponse } from '../services/geminiService.ts';
@@ -104,6 +105,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   }, [messages, isTyping]);
 
   const execCommand = (command: string, value: string = '') => {
+    editorRef.current?.focus();
     document.execCommand(command, false, value);
     editorRef.current?.focus();
   };
@@ -123,7 +125,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
       senderId: currentUser.id,
       senderName: currentUser.name,
       senderAvatar: currentUser.avatar,
-      text: content, // HTML içeriği gönderiyoruz
+      text: content,
       timestamp: new Date(),
       isUser: true,
     };
@@ -228,17 +230,31 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                  )}
 
                  <div className="flex flex-col border border-gray-200 rounded-2xl overflow-hidden focus-within:border-blue-400 transition-all bg-white shadow-sm">
-                    {/* ARAÇ ÇUBUĞU */}
+                    {/* ARAÇ ÇUBUĞU - BUTONLAR SİYAH YAPILDI */}
                     <div className="flex items-center gap-1 px-3 py-2 border-b border-gray-50 bg-gray-50/50">
-                        <button onMouseDown={(e) => { e.preventDefault(); execCommand('bold'); }} className="w-8 h-8 rounded hover:bg-white hover:shadow-sm font-bold">B</button>
-                        <button onMouseDown={(e) => { e.preventDefault(); execCommand('italic'); }} className="w-8 h-8 rounded hover:bg-white hover:shadow-sm italic">I</button>
-                        <button onMouseDown={(e) => { e.preventDefault(); execCommand('underline'); }} className="w-8 h-8 rounded hover:bg-white hover:shadow-sm underline">U</button>
-                        <div className="w-px h-4 bg-gray-200 mx-1"></div>
-                        <button onMouseDown={(e) => { e.preventDefault(); setShowEmojiPicker(!showEmojiPicker); }} className="w-8 h-8 rounded hover:bg-white hover:shadow-sm">😊</button>
+                        <button 
+                            onMouseDown={(e) => { e.preventDefault(); execCommand('bold'); }} 
+                            className="w-10 h-9 rounded-lg hover:bg-white hover:shadow-sm font-bold text-black text-base transition-colors"
+                        >B</button>
+                        <button 
+                            onMouseDown={(e) => { e.preventDefault(); execCommand('italic'); }} 
+                            className="w-10 h-9 rounded-lg hover:bg-white hover:shadow-sm italic text-black text-base transition-colors"
+                        >I</button>
+                        <button 
+                            onMouseDown={(e) => { e.preventDefault(); execCommand('underline'); }} 
+                            className="w-10 h-9 rounded-lg hover:bg-white hover:shadow-sm underline text-black text-base transition-colors"
+                        >U</button>
+                        <div className="w-px h-5 bg-gray-200 mx-2"></div>
+                        <button 
+                            onMouseDown={(e) => { e.preventDefault(); setShowEmojiPicker(!showEmojiPicker); }} 
+                            className="w-10 h-9 rounded-lg hover:bg-white hover:shadow-sm text-xl"
+                        >😊</button>
                     </div>
 
                     {/* DÜZENLENEBİLİR ALAN */}
                     <div className="flex items-center gap-2 p-3">
+                        {/* Fix: Changed placeholder to data-placeholder because div elements don't support placeholder attribute in TypeScript. 
+                            HTML5 contentEditable divs do not have a standard 'placeholder' property. */}
                         <div
                             ref={editorRef}
                             contentEditable
@@ -249,6 +265,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                                     handleSendMessage();
                                 }
                             }}
+                            data-placeholder="Mesajınızı buraya yazın..."
                         />
                         <button 
                             onClick={handleSendMessage}
@@ -260,7 +277,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                         </button>
                     </div>
                  </div>
-                 <p className="text-[10px] text-gray-400 mt-2 px-1">Artık yazarken stiliniz anında görünür, yıldızlarla uğraşmanıza gerek yok!</p>
+                 <p className="text-[10px] text-gray-400 mt-2 px-1">Artık yazarken stiliniz anında görünür!</p>
              </div>
          </div>
       </div>
