@@ -2,7 +2,6 @@ import PocketBase from 'pocketbase';
 import { Message } from '../types';
 
 // Kullanıcının sağladığı canlı sunucu adresi (HTTPS)
-// Mixed Content hatasını önlemek için güvenli domain kullanılıyor.
 const PB_URL = 'https://api.workigomchat.online';
 
 export const pb = new PocketBase(PB_URL);
@@ -10,34 +9,42 @@ export const pb = new PocketBase(PB_URL);
 // Otomatik iptal işlemleri için
 pb.autoCancellation(false);
 
-export const loginOrRegister = async (username: string) => {
-  const password = 'password123'; // Demo amaçlı sabit şifre. Gerçek uygulamada kullanıcı belirlemeli.
-  const email = `${username.toLowerCase().replace(/\s+/g, '')}@chat.local`;
-
+/**
+ * Mevcut kullanıcı ile giriş yap
+ */
+export const login = async (email: string, password: string) => {
   try {
-    // Önce giriş yapmayı dene
     const authData = await pb.collection('users').authWithPassword(email, password);
     return authData.record;
-  } catch (loginError) {
-    try {
-      // Giriş başarısızsa kullanıcı oluştur
-      const userPayload = {
-        username: username.toLowerCase().replace(/\s+/g, '').substring(0, 15) + Math.floor(Math.random() * 1000),
-        email: email,
-        emailVisibility: true,
-        password: password,
-        passwordConfirm: password,
-        name: username,
-      };
-      
-      await pb.collection('users').create(userPayload);
-      // Oluşturduktan sonra giriş yap
-      const authData = await pb.collection('users').authWithPassword(email, password);
-      return authData.record;
-    } catch (createError) {
-      console.error("Kayıt hatası:", createError);
-      throw createError;
-    }
+  } catch (error) {
+    console.error("Giriş hatası:", error);
+    throw error;
+  }
+};
+
+/**
+ * Yeni kullanıcı oluştur ve otomatik giriş yap
+ */
+export const register = async (email: string, password: string, name: string) => {
+  try {
+    // 1. Kullanıcıyı oluştur
+    const userPayload = {
+      username: `user_${Math.floor(Math.random() * 1000000)}`, // Unique username generation
+      email: email,
+      emailVisibility: true,
+      password: password,
+      passwordConfirm: password,
+      name: name,
+    };
+    
+    await pb.collection('users').create(userPayload);
+
+    // 2. Oluşturduktan sonra giriş yap
+    const authData = await pb.collection('users').authWithPassword(email, password);
+    return authData.record;
+  } catch (error) {
+    console.error("Kayıt hatası:", error);
+    throw error;
   }
 };
 
