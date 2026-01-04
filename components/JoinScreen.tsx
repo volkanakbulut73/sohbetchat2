@@ -42,18 +42,20 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
                 ? userRecord.avatar 
                 : `https://api.dicebear.com/7.x/avataaars/svg?seed=${userRecord.id}&backgroundColor=b6e3f4`;
 
+            // DEĞİŞİKLİK BURADA: isAdmin ve isOp verilerini userRecord'dan alıp state'e ekliyoruz.
             const appUser = {
                 id: userRecord.id,
                 name: userRecord.name || userRecord.username,
                 avatar: avatarUrl,
-                isBot: false
+                isBot: false,
+                isAdmin: userRecord.isAdmin, // Yetkiyi aktar
+                isOp: userRecord.isOp        // Yetkiyi aktar
             };
             
             // Eğer yönetici girişinden geldiyse ve kullanıcı admin değilse uyar (Opsiyonel UX)
             if (isAdminLogin && !userRecord.isAdmin) {
-                // Burada giriş engellenmiyor, sadece görsel bir uyarı verilebilir veya
-                // direkt normal kullanıcı gibi devam eder.
-                // Biz kullanıcıyı içeri alıyoruz, App.tsx zaten yetkileri kontrol ediyor.
+                // Sadece görsel uyarı, erişimi kesmiyoruz.
+                console.warn("Yönetici girişinden standart kullanıcı girişi yapıldı.");
             }
 
             onJoin(appUser, room);

@@ -20,9 +20,13 @@ const checkIfBanned = async (email: string) => {
             filter: `email = "${email}"`,
         });
         return records.items.length > 0;
-    } catch (e) {
-        // Koleksiyon yoksa veya hata varsa güvenli davranıp ban yok sayıyoruz, 
-        // production'da loglanmalı.
+    } catch (e: any) {
+        // Koleksiyon yoksa (404) veya başka bir hata varsa güvenli davranıp ban yok sayıyoruz.
+        // 404 hatası koleksiyonun henüz oluşturulmadığı anlamına gelir.
+        if (e.status === 404) {
+            return false;
+        }
+        
         console.warn("Ban kontrolü yapılamadı:", e);
         return false;
     }
@@ -163,14 +167,16 @@ export const banUser = async (targetUserId: string, targetEmail: string) => {
             user_id: targetUserId
         });
         
-        // 2. Kullanıcıyı anlık olarak sistemden atmak için flag'ini güncelle (opsiyonel, kick yeterli olabilir ama bu kalıcı)
-        // Eğer 'isBanned' alanı varsa user şemasında:
-        // await pb.collection('users').update(targetUserId, { isBanned: true });
-        
-        // Şimdilik Kick mekanizmasını tetikleyelim ki hemen düşsün
+        // 2. Kullanıcıyı anlık olarak sistemden atmak için flag'ini güncelle
         await kickUser(targetUserId);
 
-    } catch (e) {
+    } catch (e: any) {
+        if (e.status === 404) {
+             const errMsg = "Sistem Hatası: 'banned_users' tablosu eksik. Lütfen veritabanı panelinden oluşturun.";
+             console.error(errMsg);
+             alert(errMsg);
+             return;
+        }
         console.error("Banlama hatası:", e);
         throw e;
     }
@@ -185,7 +191,10 @@ export const getBanList = async (): Promise<BannedUser[]> => {
             email: r.email,
             created: r.created
         }));
-    } catch (e) {
+    } catch (e: any) {
+        // Tablo yoksa boş liste dön, hata basma
+        if (e.status === 404) return [];
+        
         console.error("Ban listesi hatası:", e);
         return [];
     }
@@ -195,26 +204,23 @@ export const getBanList = async (): Promise<BannedUser[]> => {
 export const unbanUser = async (banRecordId: string) => {
     try {
         await pb.collection('banned_users').delete(banRecordId);
-    } catch (e) {
+    } catch (e: any) {
+        if (e.status === 404) {
+             alert("'banned_users' tablosu bulunamadı.");
+             return;
+         }
         console.error("Ban kaldırma hatası:", e);
         throw e;
     }
 };
 
 // Kullanıcıyı At (Kick)
-// Bu fonksiyon kullanıcının 'kicked' alanını true yapar (veya timestamp günceller).
-// Frontend bunu dinler ve çıkış yapar.
+// Bu fonksiyon kullanıcının 'kicked' alanını true yapar.
 export const kickUser = async (targetUserId: string) => {
     try {
-        // Timestamp veya boolean kullanarak değişiklik tetikle
-        // 'kicked' alanı boolean assumed
         await pb.collection('users').update(targetUserId, {
             kicked: true
         });
-        
-        // Bir süre sonra tekrar false yapılabilir server-side hook ile veya login'de
-        // Ancak basitlik adına, kullanıcı tekrar login olduğunda bu değer false yapılmalı (login'de update)
-        // Ya da client tarafında 'kick' yediğinde logout olur, tekrar girince 'login' fonksiyonu bu değeri resetleyebilir.
     } catch (e) {
         console.error("Kick hatası:", e);
         throw e;
