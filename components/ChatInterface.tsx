@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Message } from '../types.ts';
-import { pb, sendMessageToPb, getRoomMessages, getAllUsers, banUser, kickUser, setUserOpStatus } from '../services/pocketbase.ts';
+import { pb, sendMessageToPb, getRoomMessages, getAllUsers, banUser, kickUser, setUserOpStatus, getRoomMuteStatus, setRoomMuteStatus } from '../services/pocketbase.ts';
 
 interface AiChatModuleProps {
   currentUser: User;           
@@ -57,6 +57,9 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   
+  // Room State
+  const [isRoomMuted, setIsRoomMuted] = useState(false);
+
   // Context Menu State
   const [contextMenu, setContextMenu] = useState<{
     visible: boolean;
@@ -74,6 +77,32 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   const editorRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const currentRoomId = roomId || (isPrivate ? `private_${currentUser.id}` : 'general');
+
+  // Oda Durumu (Mute) Kontrolü
+  useEffect(() => {
+     if(isPrivate) return; // Özel mesajlarda mute olmaz
+
+     // İlk yüklemede durumu çek
+     const checkMuteStatus = async () => {
+         const status = await getRoomMuteStatus(currentRoomId);
+         setIsRoomMuted(status);
+     };
+     checkMuteStatus();
+
+     // Realtime dinle
+     const unsubscribe = pb.collection('room_states').subscribe('*', (e) => {
+         if (e.action === 'create' || e.action === 'update') {
+             if (e.record.room_id === currentRoomId) {
+                 setIsRoomMuted(e.record.is_muted);
+             }
+         }
+     }).catch(() => {}); // Koleksiyon yoksa hata vermesin
+
+     return () => {
+        pb.collection('room_states').unsubscribe('*').catch(() => {});
+     };
+  }, [currentRoomId, isPrivate]);
+
 
   // Mesaj Geçmişi ve Mesaj Aboneliği
   useEffect(() => {
@@ -253,10 +282,18 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   };
 
   const handleSendMessage = async (overrideText?: string, audioData?: string) => {
+    // Engelli kontrolü
     if (isBlocked) {
         alert("Bu kullanıcı engelli, mesaj gönderemezsiniz.");
         return;
     }
+
+    // Oda Sessize Alınmışsa ve Admin Değilsek Engelle
+    if (isRoomMuted && !currentUser.isAdmin) {
+        alert("Bu oda yöneticiler tarafından sessize alınmıştır. Mesaj gönderemezsiniz.");
+        return;
+    }
+
     const content = overrideText !== undefined ? overrideText : (editorRef.current?.innerHTML || '');
     const plainText = overrideText !== undefined ? overrideText : (editorRef.current?.innerText || '');
     
@@ -308,9 +345,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
 
   // --- CONTEXT MENU HANDLERS ---
   const handleContextMenu = (e: React.MouseEvent, user: User) => {
-    // Sadece Admin veya Op isek menüyü aç
     if (!currentUser.isAdmin && !currentUser.isOp) return;
-    // Kendimize işlem yapmayalım
     if (user.id === currentUser.id) return;
 
     e.preventDefault();
@@ -338,7 +373,6 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   };
 
   const handleKickAction = async (targetUser: User) => {
-      // Admin ve Op atabilir
       if (confirm(`${targetUser.name} adlı kullanıcıyı odadan/sunucudan atmak (Kick) istiyor musunuz?`)) {
           try {
              await kickUser(targetUser.id);
@@ -350,31 +384,72 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   };
 
   const handleBanAction = async (targetUser: User) => {
-      // Admin ve Op banlayabilir
-      // Not: Admin, ban listesini düzenleyebilir, Op sadece ekleyebilir (arayüz kısıtı App.tsx'de)
       if (confirm(`${targetUser.name} adlı kullanıcıyı süresiz yasaklamak (Ban) istiyor musunuz?`)) {
           try {
-              // Hile: Banlamak için email lazım. Eğer user objesinde yoksa soralım.
-              let email = (targetUser as any).email;
+              let email = targetUser.email;
               if (!email) {
-                 const reason = prompt("Banlamak için kullanıcının e-postasını doğrulayın (veya veritabanından bulacaktır):", "");
-                 if(!reason) return; // İptal
+                 const reason = prompt("Kullanıcının e-postası sistemde bulunamadı. Lütfen manuel girin:", "");
+                 if(!reason) return;
                  email = reason; 
               }
 
               await banUser(targetUser.id, email);
-              alert("Kullanıcı yasaklandı.");
+              alert("Kullanıcı yasaklandı ve atıldı.");
           } catch(e: any) { 
-              alert(e.message || "Banlama hatası (E-posta gerekli)."); 
+              console.error(e);
           }
       }
   };
+
+  // --- MUTE ACTION ---
+  const handleToggleMute = async () => {
+      if (!currentUser.isAdmin) return;
+      const newStatus = !isRoomMuted;
+      const msg = newStatus ? "Odayı sessize almak (sadece adminler konuşabilir) istiyor musunuz?" : "Oda sessizliğini kaldırmak istiyor musunuz?";
+      
+      if (confirm(msg)) {
+          try {
+              await setRoomMuteStatus(currentRoomId, newStatus);
+          } catch (e) {
+              // Hata serviste handle ediliyor
+          }
+      }
+  };
+
+  const inputDisabled = isBlocked || (isRoomMuted && !currentUser.isAdmin);
 
   return (
     <div className="flex h-full w-full bg-white overflow-hidden relative">
       
       {/* SOHBET ALANI */}
       <div className="flex-1 flex flex-col min-w-0 relative h-full border-r border-gray-50">
+         
+         {/* CHAT HEADER (ROOM TITLE & ACTIONS) */}
+         <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-30">
+            <div>
+                <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+                    {title}
+                    {isRoomMuted && <span className="px-2 py-0.5 bg-red-100 text-red-600 text-[10px] rounded-full">SESSİZ MOD</span>}
+                </h2>
+                <p className="text-[10px] text-gray-500 font-medium truncate max-w-[250px]">{topic}</p>
+            </div>
+            
+            {/* Admin Mute Control */}
+            {currentUser.isAdmin && !isPrivate && (
+                <button 
+                    onClick={handleToggleMute}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isRoomMuted ? 'bg-red-500 text-white shadow-red-200 shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                    title={isRoomMuted ? "Sessizliği Kaldır" : "Odayı Sessize Al"}
+                >
+                    {isRoomMuted ? (
+                        <><span>🔒</span> Odayı Aç</>
+                    ) : (
+                        <><span>🔓</span> Sessize Al</>
+                    )}
+                </button>
+            )}
+         </div>
+
          <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 bg-[#f8f9fa] touch-auto">
             {messages.map((msg, index) => {
                 const isMe = msg.senderId === currentUser.id;
@@ -399,6 +474,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
 
          <div className="bg-white border-t border-gray-100 p-2 sm:p-4 relative z-40">
              <div className="w-full">
+                 {/* Emoji ve Renk Pickerlar (Aynı kod) */}
                  {showEmojiPicker && (
                     <div className="absolute bottom-full left-4 mb-4 bg-white border border-gray-200 shadow-2xl rounded-2xl p-4 z-[999] w-72">
                         <div className="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto">
@@ -414,7 +490,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                     </div>
                  )}
 
-                 <div className={`flex flex-col border rounded-2xl overflow-hidden transition-all bg-white shadow-sm ${isBlocked ? 'border-red-200 opacity-70 pointer-events-none' : 'border-gray-200 focus-within:border-blue-400'}`}>
+                 <div className={`flex flex-col border rounded-2xl overflow-hidden transition-all bg-white shadow-sm ${inputDisabled ? 'border-red-200 bg-red-50/50' : 'border-gray-200 focus-within:border-blue-400'}`}>
                     {selectedImage && (
                         <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 flex items-start gap-3">
                             <div className="relative group">
@@ -425,7 +501,7 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                         </div>
                     )}
 
-                    <div className="flex items-center gap-1 px-3 py-2 border-b border-gray-50 bg-gray-50/50">
+                    <div className={`flex items-center gap-1 px-3 py-2 border-b border-gray-50 bg-gray-50/50 ${inputDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
                         <button onMouseDown={(e) => { e.preventDefault(); execCommand('bold'); }} className="w-10 h-9 rounded-lg hover:bg-white hover:shadow-sm font-bold text-black text-base transition-colors">B</button>
                         <button onMouseDown={(e) => { e.preventDefault(); execCommand('italic'); }} className="w-10 h-9 rounded-lg hover:bg-white hover:shadow-sm italic text-black text-base transition-colors">I</button>
                         <button onMouseDown={(e) => { e.preventDefault(); execCommand('underline'); }} className="w-10 h-9 rounded-lg hover:bg-white hover:shadow-sm underline text-black text-base transition-colors">U</button>
@@ -447,15 +523,25 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                                 <span className="w-3 h-3 bg-red-500 rounded-full"></span> Kaydediliyor... Bırakınca gönderilir.
                             </div>
                         )}
-                        <div ref={editorRef} contentEditable={!isBlocked} className="flex-1 min-h-[24px] max-h-[150px] overflow-y-auto outline-none text-[15px] text-slate-700 px-2 py-1" onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }} data-placeholder={isBlocked ? "Bu sohbet engellendi." : "Mesajınızı buraya yazın..."} />
+                        
+                        <div 
+                            ref={editorRef} 
+                            contentEditable={!inputDisabled} 
+                            className={`flex-1 min-h-[24px] max-h-[150px] overflow-y-auto outline-none text-[15px] text-slate-700 px-2 py-1 ${inputDisabled ? 'cursor-not-allowed text-gray-400 italic' : ''}`}
+                            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }} 
+                            data-placeholder={
+                                isBlocked ? "Bu sohbet engellendi." : 
+                                (isRoomMuted && !currentUser.isAdmin ? "🔒 Sohbet yöneticiler tarafından kapatıldı." : "Mesajınızı buraya yazın...")
+                            } 
+                        />
                         
                         {isPrivate && (
-                            <button onMouseDown={startRecording} onMouseUp={stopRecording} onMouseLeave={stopRecording} onTouchStart={(e) => { e.preventDefault(); startRecording(); }} onTouchEnd={(e) => { e.preventDefault(); stopRecording(); }} disabled={isBlocked} className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-lg active:scale-95 shrink-0 ${isRecording ? 'bg-red-500 text-white scale-110' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'} ${isBlocked ? 'opacity-50 cursor-not-allowed' : ''}`} title="Basılı tutarak konuşun">
+                            <button onMouseDown={startRecording} onMouseUp={stopRecording} onMouseLeave={stopRecording} onTouchStart={(e) => { e.preventDefault(); startRecording(); }} onTouchEnd={(e) => { e.preventDefault(); stopRecording(); }} disabled={inputDisabled} className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-lg active:scale-95 shrink-0 ${isRecording ? 'bg-red-500 text-white scale-110' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'} ${inputDisabled ? 'opacity-50 cursor-not-allowed' : ''}`} title="Basılı tutarak konuşun">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" /></svg>
                             </button>
                         )}
 
-                        <button onClick={() => handleSendMessage()} disabled={isBlocked} className={`w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center transition-all shadow-lg active:scale-95 shrink-0 ${isBlocked ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}>
+                        <button onClick={() => handleSendMessage()} disabled={inputDisabled} className={`w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center transition-all shadow-lg active:scale-95 shrink-0 ${inputDisabled ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}>
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
                         </button>
                     </div>

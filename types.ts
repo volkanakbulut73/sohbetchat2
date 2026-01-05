@@ -7,6 +7,7 @@ export interface User {
   role?: string; 
   isAdmin?: boolean; // Süper Yönetici
   isOp?: boolean;    // Operatör (Kısıtlı yetki)
+  email?: string;    // Admin işlemleri için gerekli
 }
 
 export interface Message {
