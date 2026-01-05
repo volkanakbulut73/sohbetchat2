@@ -47,7 +47,6 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
                 id: userRecord.id,
                 name: userRecord.name || userRecord.username,
                 avatar: avatarUrl,
-                isBot: false,
                 isAdmin: userRecord.isAdmin, // Yetkiyi aktar
                 isOp: userRecord.isOp        // Yetkiyi aktar
             };

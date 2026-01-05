@@ -98,7 +98,6 @@ export const getAllUsers = async () => {
       avatar: (record.avatar && record.avatar.startsWith('http')) 
         ? record.avatar 
         : `https://api.dicebear.com/7.x/avataaars/svg?seed=${record.id}&backgroundColor=b6e3f4`,
-      isBot: false,
       isAdmin: record.isAdmin,
       isOp: record.isOp,
       email: record.email // Ban işlemi için gerekli

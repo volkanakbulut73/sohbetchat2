@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, Message } from '../types.ts';
 import { pb, sendMessageToPb, getRoomMessages, getAllUsers, banUser, kickUser, setUserOpStatus, getRoomMuteStatus, setRoomMuteStatus } from '../services/pocketbase.ts';
 
-interface AiChatModuleProps {
+interface ChatInterfaceProps {
   currentUser: User;           
   topic: string;               
   participants: User[];        
@@ -38,7 +38,7 @@ const COLORS = [
     '#4b5563', // Gri
 ];
 
-const AiChatModule: React.FC<AiChatModuleProps> = ({ 
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ 
   currentUser, 
   topic, 
   participants, 
@@ -172,7 +172,6 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
                id: m.senderId,
                name: m.senderName,
                avatar: m.senderAvatar,
-               isBot: false
            });
        }
     });
@@ -629,4 +628,4 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
   );
 };
 
-export default AiChatModule;
+export default ChatInterface;

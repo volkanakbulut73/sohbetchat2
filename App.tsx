@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import JoinScreen from './components/JoinScreen.tsx';
-import AiChatModule from './components/ChatInterface.tsx';
+import ChatInterface from './components/ChatInterface.tsx';
 import { User, ChatRoom, BannedUser } from './types.ts';
 import { ROOMS } from './constants.ts';
 import { pb, signOut, getBanList, unbanUser, resetUserStatus } from './services/pocketbase.ts';
@@ -88,7 +88,6 @@ function App() {
                     id: msg.senderId,
                     name: msg.senderName,
                     avatar: msg.senderAvatar,
-                    isBot: false
                   }], 
                   isPrivate: true
                 };
@@ -360,7 +359,7 @@ function App() {
       {/* Main Content Area */}
       <div className="flex-1 relative bg-white overflow-hidden h-full">
           {activeRoom ? (
-             <AiChatModule 
+             <ChatInterface 
                 key={activeRoom.id}
                 currentUser={user}
                 topic={activeRoom.topic}

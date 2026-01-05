@@ -3,7 +3,6 @@ export interface User {
   id: string;
   name: string;
   avatar: string;
-  isBot: boolean;
   role?: string; 
   isAdmin?: boolean; // Süper Yönetici
   isOp?: boolean;    // Operatör (Kısıtlı yetki)
@@ -37,9 +36,4 @@ export interface BannedUser {
   email: string; // Banlanan email veya ID
   reason?: string;
   created: string;
-}
-
-export interface BotResponseItem {
-  botId: string;
-  message: string;
 }
