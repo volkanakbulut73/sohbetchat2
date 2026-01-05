@@ -425,13 +425,12 @@ const AiChatModule: React.FC<AiChatModuleProps> = ({
       <div className="flex-1 flex flex-col min-w-0 relative h-full border-r border-gray-50">
          
          {/* CHAT HEADER (ROOM TITLE & ACTIONS) */}
-         <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-30">
-            <div>
-                <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+         <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-30">
+            <div className="flex items-center gap-2">
+                <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">
                     {title}
-                    {isRoomMuted && <span className="px-2 py-0.5 bg-red-100 text-red-600 text-[10px] rounded-full">SESSİZ MOD</span>}
                 </h2>
-                <p className="text-[10px] text-gray-500 font-medium truncate max-w-[250px]">{topic}</p>
+                {isRoomMuted && <span className="px-2 py-0.5 bg-red-100 text-red-600 text-[10px] rounded-full font-bold">SESSİZ MOD</span>}
             </div>
             
             {/* Admin Mute Control */}
