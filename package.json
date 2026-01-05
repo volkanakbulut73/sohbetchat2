@@ -11,7 +11,9 @@
   "dependencies": {
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "pocketbase": "^0.26.5"
+    "pocketbase": "^0.26.5",
+    "@ai-sdk/groq": "^3.0.3",
+    "ai": "^6.0.10"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
