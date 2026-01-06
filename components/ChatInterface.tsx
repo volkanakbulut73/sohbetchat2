@@ -104,7 +104,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   }, [currentRoomId, isPrivate]);
 
 
-  // Mesaj Geçmişi ve Mesaj Aboneliği
+  // Mesaj Geçmişi ve Mesaj Aboneliği (Create & Update)
   useEffect(() => {
     const loadHistory = async () => {
         const history = await getRoomMessages(currentRoomId);
@@ -113,22 +113,32 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     loadHistory();
 
     const unsubscribe = pb.collection('messages').subscribe('*', function (e) {
-        if (e.action === 'create' && e.record.room === currentRoomId) {
-            setMessages(prev => {
-                if (prev.some(m => m.id === e.record.id)) return prev;
-                const newMsg: Message = {
-                    id: e.record.id,
-                    senderId: e.record.senderId,
-                    senderName: e.record.senderName,
-                    senderAvatar: e.record.senderAvatar,
+        if (e.record.room === currentRoomId) {
+            if (e.action === 'create') {
+                setMessages(prev => {
+                    if (prev.some(m => m.id === e.record.id)) return prev;
+                    const newMsg: Message = {
+                        id: e.record.id,
+                        senderId: e.record.senderId,
+                        senderName: e.record.senderName,
+                        senderAvatar: e.record.senderAvatar,
+                        text: e.record.text,
+                        timestamp: new Date(e.record.created),
+                        isUser: e.record.isUser,
+                        image: e.record.image || undefined,
+                        audio: e.record.audio || undefined
+                    };
+                    return [...prev, newMsg];
+                });
+            } else if (e.action === 'update') {
+                // Mesaj güncellendiğinde (Örn: AI cevabı tamamladığında)
+                setMessages(prev => prev.map(m => m.id === e.record.id ? {
+                    ...m,
                     text: e.record.text,
-                    timestamp: new Date(e.record.created),
-                    isUser: e.record.isUser,
                     image: e.record.image || undefined,
                     audio: e.record.audio || undefined
-                };
-                return [...prev, newMsg];
-            });
+                } : m));
+            }
         }
     });
 

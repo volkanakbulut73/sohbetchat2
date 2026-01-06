@@ -1,23 +1,14 @@
-import { createGroq } from '@ai-sdk/groq';
-import { streamText } from 'ai';
+import { GoogleGenAI } from "@google/genai";
 
-// Vercel Edge Runtime for lower latency
 export const runtime = 'edge';
 
-// Initialize Groq provider
-const groq = createGroq({
-  apiKey: process.env.GROQ_API_KEY,
-});
-
 export async function POST(req: Request) {
-  // CORS Headers for PocketBase/Frontend access
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   };
 
-  // Handle CORS preflight request
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
@@ -25,28 +16,43 @@ export async function POST(req: Request) {
   try {
     const { messages } = await req.json();
 
-    // Streaming response using Vercel AI SDK
-    const result = await streamText({
-      // Using Llama 3.3 70B as the closest valid high-performance equivalent on Groq
-      // 'openai/gpt-oss-120b' is not a standard public Groq model ID
-      model: groq('llama-3.3-70b-versatile'),
-      messages,
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+    // Extract system instruction and user prompt from the messages array
+    const systemMessage = messages.find((m: any) => m.role === 'system');
+    const userMessage = messages.find((m: any) => m.role === 'user');
+    
+    const systemInstruction = systemMessage ? systemMessage.content : undefined;
+    const prompt = userMessage ? userMessage.content : '';
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+      config: {
+        systemInstruction: systemInstruction,
+      },
     });
 
-    // Return stream with CORS headers
-    return result.toDataStreamResponse({
-      headers: corsHeaders,
-    });
-
-  } catch (error) {
-    console.error('AI API Error:', error);
-    return new Response(JSON.stringify({ error: 'Failed to process AI request' }), {
-      status: 500,
+    return new Response(JSON.stringify({ text: response.text }), {
+      status: 200,
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/json',
       },
     });
+
+  } catch (error: any) {
+    console.error('AI API Error:', error);
+    return new Response(
+      JSON.stringify({ error: error.message || 'Failed to process AI request' }),
+      {
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
   }
 }
 
@@ -60,4 +66,3 @@ export async function OPTIONS() {
     },
   });
 }
-
