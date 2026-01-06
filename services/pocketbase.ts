@@ -7,6 +7,12 @@ const PB_URL = 'https://api.workigomchat.online';
 
 export const pb = new PocketBase(PB_URL);
 
+// DEBUG: Konsol üzerinden erişim için (window.pb)
+if (typeof window !== 'undefined') {
+  // @ts-ignore
+  window.pb = pb;
+}
+
 // Otomatik iptal işlemleri için
 pb.autoCancellation(false);
 
