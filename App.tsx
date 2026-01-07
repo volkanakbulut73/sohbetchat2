@@ -16,6 +16,7 @@ function App() {
   // New Features State
   const [allowDms, setAllowDms] = useState(true);
   const [blockedUsers, setBlockedUsers] = useState<Set<string>>(new Set());
+  const [isRadioOpen, setIsRadioOpen] = useState(false); // Radyo durumu
 
   // Admin States
   const [showBanList, setShowBanList] = useState(false);
@@ -158,6 +159,7 @@ function App() {
     setUnreadRoomIds(new Set());
     setBlockedUsers(new Set());
     setShowBanList(false);
+    setIsRadioOpen(false);
   };
 
   const handleUserDoubleClick = (targetUser: User) => {
@@ -322,18 +324,37 @@ function App() {
                   </div>
 
                   <div className="hidden lg:flex items-center justify-center border-l border-gray-100 pl-4 overflow-hidden shrink-0">
-                    <div className="bg-[#f0f2f5] rounded-xl p-1 shadow-sm border border-gray-100 overflow-hidden flex items-center">
-                      <iframe 
-                        width="345" 
-                        height="65" 
-                        src="https://www.radyod.com/iframe-small" 
-                        frameBorder="0" 
-                        allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" 
-                        allowFullScreen
-                        className="rounded-lg scale-[0.85] origin-center"
-                        title="Radyo D Player"
-                      ></iframe>
-                    </div>
+                    {isRadioOpen ? (
+                        <div className="flex items-center gap-2">
+                            <div className="bg-[#f0f2f5] rounded-xl p-1 shadow-sm border border-gray-100 overflow-hidden flex items-center">
+                              <iframe 
+                                width="345" 
+                                height="65" 
+                                src="https://www.radyod.com/iframe-small" 
+                                frameBorder="0" 
+                                allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" 
+                                allowFullScreen
+                                className="rounded-lg scale-[0.85] origin-center"
+                                title="Radyo D Player"
+                              ></iframe>
+                            </div>
+                            <button 
+                                onClick={() => setIsRadioOpen(false)}
+                                className="w-8 h-8 flex items-center justify-center bg-red-50 text-red-500 rounded-full hover:bg-red-100 transition-colors border border-red-100 shadow-sm"
+                                title="Radyoyu Kapat"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                            </button>
+                        </div>
+                    ) : (
+                         <button 
+                            onClick={() => setIsRadioOpen(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-50 to-purple-50 hover:from-indigo-100 hover:to-purple-100 text-indigo-600 rounded-xl transition-all font-bold text-xs border border-indigo-100 shadow-sm"
+                        >
+                            <span className="animate-bounce">📻</span>
+                            <span>Canlı Radyo</span>
+                        </button>
+                    )}
                   </div>
               </div>
           </div>
