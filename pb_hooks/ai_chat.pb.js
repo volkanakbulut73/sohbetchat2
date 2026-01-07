@@ -1,34 +1,35 @@
-console.log("🔥 AI CHAT HOOK YÜKLENDİ");
-
 onRecordAfterCreateRequest((e) => {
-    if (e.collection.name !== "messages") return;
+  const record = e.record
 
-    const record = e.record;
+  if (record.collection().name !== "messages") return
 
-    const text = record.get("text");
-    const isUser = record.get("isUser");
-    const room = record.get("room");
+  console.log("🔥 MESSAGE CREATE TETİKLENDİ")
 
-    console.log("🔥 MESSAGE CREATE TETİKLENDİ");
-    console.log("📩 TEXT:", text);
-    console.log("👤 isUser:", isUser);
+  const text = record.get("text")
+  const isUser = record.get("isUser")
 
-    // sadece kullanıcı mesajıysa cevapla
-    if (!isUser) return;
-    if (!text) return;
+  console.log("📩 TEXT:", text)
+  console.log("👤 isUser:", isUser)
 
-    const reply = "Merhaba 👋 Ben Workigom AI 🤖";
+  if (!isUser) {
+    console.log("🤖 AI mesajı, atlandı")
+    return
+  }
 
-    const col = $app.dao().findCollectionByNameOrId("messages");
-    const aiMsg = new Record(col);
+  if (!text || text.trim() === "") {
+    console.log("⚠️ Boş mesaj")
+    return
+  }
 
-    aiMsg.set("text", reply);
-    aiMsg.set("room", room);
-    aiMsg.set("senderName", "Workigom AI");
-    aiMsg.set("isUser", false);
-    aiMsg.set("type", "text");
+  $app.dao().saveRecord(
+    new Record($app.dao().findCollectionByNameOrId("messages"), {
+      text: "Merhaba 👋 Ben Workigom AI 🤖",
+      room: record.get("room"),
+      senderName: "Workigom AI",
+      isUser: false,
+      type: "ai"
+    })
+  )
 
-    $app.dao().saveRecord(aiMsg);
-
-    console.log("🤖 AI CEVAP YAZDI");
-});
+  console.log("✅ AI CEVAP YAZDI")
+})
