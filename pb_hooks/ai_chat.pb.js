@@ -1,38 +1,31 @@
 onRecordAfterCreateRequest((e) => {
-  const record = e.record;
+    if (e.collection.name !== "messages") return;
 
-  // sadece user mesajları
-  if (record.get("role") !== "user") return;
+    const record = e.record;
 
-  const roomId = record.get("room_id");
-  const content = record.get("content");
+    console.log("🔥 MESSAGE CREATE TETİKLENDİ");
+    console.log("📩 TEXT:", record.get("text"));
+    console.log("👤 isUser:", record.get("isUser"));
 
-  const AI_USER_ID = "AI_USER_ID_BURAYA";
+    // sadece kullanıcı mesajıysa AI cevap versin
+    if (!record.get("isUser")) return;
 
-  const res = $http.send({
-    url: process.env.AI_API_URL + "/api/ai/chat",
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      messages: [
-        { role: "user", content }
-      ]
-    })
-  });
+    const text = record.get("text");
+    const room = record.get("room");
 
-  if (!res || res.statusCode !== 200) {
-    console.log("AI API error");
-    return;
-  }
+    if (!text) return;
 
-  const text = res.json.text || "Cevap üretilemedi.";
+    // AI cevabı (şimdilik sabit cevap test için)
+    const aiReply = "Merhaba 👋 Ben Workigom AI 🤖";
 
-  const aiMsg = new Record("messages");
-  aiMsg.set("room_id", roomId);
-  aiMsg.set("content", text);
-  aiMsg.set("role", "assistant");
-  aiMsg.set("user", AI_USER_ID);
+    const collection = $app.dao().findCollectionByNameOrId("messages");
 
-  $app.dao().saveRecord(aiMsg);
+    const aiRecord = new Record(collection);
+    aiRecord.set("text", aiReply);
+    aiRecord.set("room", room);
+    aiRecord.set("senderName", "Workigom AI");
+    aiRecord.set("isUser", false);
+    aiRecord.set("type", "text");
 
-}, "messages");
+    $app.dao().saveRecord(aiRecord);
+});
