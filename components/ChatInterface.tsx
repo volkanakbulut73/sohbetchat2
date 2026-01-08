@@ -78,142 +78,124 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const currentRoomId = roomId || (isPrivate ? `private_${currentUser.id}` : 'general');
 
-  // Oda Durumu (Mute) Kontrolü
+  // Veri Çekme Fonksiyonları
+  const fetchMessages = async () => {
+      const history = await getRoomMessages(currentRoomId);
+      if (history) {
+          // Basit bir optimizasyon: Sadece ID listesi farklıysa veya uzunluk farklıysa güncelle
+          setMessages(prev => {
+              if (prev.length === history.length && prev[prev.length-1]?.id === history[history.length-1]?.id) {
+                  return prev;
+              }
+              return history;
+          });
+      }
+  };
+
+  const fetchUsers = async () => {
+      const users = await getAllUsers();
+      setHumanUsers(users);
+  };
+
+  const fetchRoomStatus = async () => {
+     if (isPrivate) return;
+     const status = await getRoomMuteStatus(currentRoomId);
+     setIsRoomMuted(status);
+  };
+
+  // POLLING MEKANİZMASI (Realtime 404 hatasına karşı yedek sistem)
+  // Her 3 saniyede bir verileri tazeler
   useEffect(() => {
-     if(isPrivate) return; // Özel mesajlarda mute olmaz
+    // İlk yükleme
+    fetchMessages();
+    fetchUsers();
+    fetchRoomStatus();
 
-     // İlk yüklemede durumu çek
-     const checkMuteStatus = async () => {
-         const status = await getRoomMuteStatus(currentRoomId);
-         setIsRoomMuted(status);
-     };
-     checkMuteStatus();
+    const intervalId = setInterval(() => {
+        fetchMessages();
+        fetchUsers();
+        fetchRoomStatus();
+    }, 3000); // 3 saniyede bir yenile
 
-     // Realtime dinle
-     const unsubscribe = pb.collection('room_states').subscribe('*', (e) => {
-         if (e.action === 'create' || e.action === 'update') {
-             if (e.record.room_id === currentRoomId) {
-                 setIsRoomMuted(e.record.is_muted);
-             }
-         }
-     }).catch(() => {}); // Koleksiyon yoksa hata vermesin
-
-     return () => {
-        pb.collection('room_states').unsubscribe('*').catch(() => {});
-     };
+    return () => clearInterval(intervalId);
   }, [currentRoomId, isPrivate]);
 
 
-  // Mesaj Geçmişi ve Mesaj Aboneliği (Create & Update)
+  // Realtime Abonelikleri (Çalışırsa anlık tepki verir, çalışmazsa Polling devreye girer)
   useEffect(() => {
-    const loadHistory = async () => {
-        const history = await getRoomMessages(currentRoomId);
-        setMessages(history.length > 0 ? history : []);
-    };
-    loadHistory();
-
-    const unsubscribe = pb.collection('messages').subscribe('*', function (e) {
+    // Mesajlar
+    pb.collection('messages').subscribe('*', (e) => {
         if (e.record.room === currentRoomId) {
-            if (e.action === 'create') {
-                setMessages(prev => {
-                    if (prev.some(m => m.id === e.record.id)) return prev;
-                    const newMsg: Message = {
-                        id: e.record.id,
-                        senderId: e.record.senderId,
-                        senderName: e.record.senderName,
-                        senderAvatar: e.record.senderAvatar,
-                        text: e.record.text,
-                        timestamp: new Date(e.record.created),
-                        isUser: e.record.isUser,
-                        image: e.record.image || undefined,
-                        audio: e.record.audio || undefined
-                    };
-                    return [...prev, newMsg];
-                });
-            } else if (e.action === 'update') {
-                // Mesaj güncellendiğinde
-                setMessages(prev => prev.map(m => m.id === e.record.id ? {
-                    ...m,
-                    text: e.record.text,
-                    image: e.record.image || undefined,
-                    audio: e.record.audio || undefined
-                } : m));
-            }
+             fetchMessages(); // Değişiklik olunca çek
         }
-    });
+    }).catch(err => console.warn("Realtime message sub failed (using polling fallback)", err));
 
-    return () => { pb.collection('messages').unsubscribe('*'); };
-  }, [currentRoomId, currentUser]);
+    // Kullanıcılar
+    pb.collection('users').subscribe('*', (e) => {
+        fetchUsers();
+    }).catch(err => console.warn("Realtime user sub failed", err));
 
-  // Kullanıcı Listesi ve Kullanıcı Aboneliği
-  useEffect(() => {
-    const fetchUsers = async () => {
-      const users = await getAllUsers();
-      setHumanUsers(users);
+    // Oda Durumu
+    if (!isPrivate) {
+        pb.collection('room_states').subscribe('*', (e) => {
+            if (e.record.room_id === currentRoomId) {
+                setIsRoomMuted(e.record.is_muted);
+            }
+        }).catch(() => {});
+    }
+
+    // Cleanup: Hata vermemesi için catch bloğu eklendi
+    return () => { 
+        pb.collection('messages').unsubscribe('*').catch(() => {});
+        pb.collection('users').unsubscribe('*').catch(() => {});
+        pb.collection('room_states').unsubscribe('*').catch(() => {});
     };
+  }, [currentRoomId, isPrivate]);
 
-    fetchUsers();
 
-    // Yeni kullanıcılar kayıt olduğunda veya güncellendiğinde (online/offline) listeyi güncelle
-    const unsubscribe = pb.collection('users').subscribe('*', (e) => {
-      fetchUsers();
-    });
-
-    return () => { pb.collection('users').unsubscribe('*'); };
-  }, []);
-
-  // Context menüsünü kapatma (tıklama ile)
+  // Context menüsünü kapatma
   useEffect(() => {
     const handleClick = () => setContextMenu({ ...contextMenu, visible: false });
     window.addEventListener('click', handleClick);
     return () => window.removeEventListener('click', handleClick);
   }, [contextMenu]);
 
-  // Kullanıcıları Birleştir ve FİLTRELE (Online olmayanları çıkar)
+  // Kullanıcıları Filtrele
   useEffect(() => {
     const uniqueUsers = new Map<string, User>();
-    
-    // Özel oda katılımcılarını ekle
     participants.forEach(p => uniqueUsers.set(p.id, p));
     
-    // Mesajı olanları ekle (Geçmiş mesajlar için isim görünsün diye ama listede aktif olarak sadece online olanlar kalsın istiyoruz)
-    // Ancak kullanıcı listesi (sidebar) sadece AKTİF kullanıcıları göstermeli.
-    // Bu yüzden messages loop'unu kaldırıp sadece humanUsers üzerinden gidiyoruz.
-    
-    // veritabanından gelen tüm kullanıcılar (humanUsers) içinde isOnline=true olanları al
+    // Sadece ONLINE olan kullanıcıları listeye ekle
     humanUsers.forEach(u => {
       if (u.isOnline) {
           uniqueUsers.set(u.id, u);
       }
     });
 
-    // Kendimizi her zaman ekle (Offline görünsek bile UI'da varız)
+    // Kendimizi her zaman ekle
     uniqueUsers.set(currentUser.id, currentUser);
 
     const sortedUsers = Array.from(uniqueUsers.values()).sort((a, b) => {
         if (a.id === currentUser.id) return -1;
         if (b.id === currentUser.id) return 1;
-        // Adminler üstte
         if (a.isAdmin && !b.isAdmin) return -1;
         if (!a.isAdmin && b.isAdmin) return 1;
-        // Oplar admin altında
         if (a.isOp && !b.isOp) return -1;
         if (!a.isOp && b.isOp) return 1;
-        
         return a.name.localeCompare(b.name);
     });
 
     setDisplayUsers(sortedUsers);
-  }, [currentUser, participants, humanUsers]); // messages dependency removed to avoid re-render loop on msg
+  }, [currentUser, participants, humanUsers]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   useEffect(() => {
-    const timer = setTimeout(scrollToBottom, 100);
-    return () => clearTimeout(timer);
-  }, [messages]);
+    // Mesaj sayısı arttığında aşağı kaydır
+    scrollToBottom();
+  }, [messages.length]);
 
   const execCommand = (command: string, value: string = '') => {
     editorRef.current?.focus();
@@ -289,13 +271,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   };
 
   const handleSendMessage = async (overrideText?: string, audioData?: string) => {
-    // Engelli kontrolü
     if (isBlocked) {
         alert("Bu kullanıcı engelli, mesaj gönderemezsiniz.");
         return;
     }
 
-    // Oda Sessize Alınmışsa ve Admin Değilsek Engelle
     if (isRoomMuted && !currentUser.isAdmin) {
         alert("Bu oda yöneticiler tarafından sessize alınmıştır. Mesaj gönderemezsiniz.");
         return;
@@ -325,6 +305,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     
     try {
       await sendMessageToPb(userMsgPayload, currentRoomId);
+      // Mesaj gönderir göndermez listeyi tazele
+      fetchMessages();
     } catch (err) {
       console.error("Mesaj gönderme hatası:", err);
     }
@@ -373,6 +355,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           try {
             await setUserOpStatus(targetUser.id, !targetUser.isOp);
             alert("İşlem başarılı.");
+            fetchUsers();
           } catch(e: any) { 
               alert(e.message || "Hata oluştu."); 
           }
@@ -384,6 +367,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           try {
              await kickUser(targetUser.id);
              alert("Kullanıcı atıldı.");
+             fetchUsers();
           } catch(e: any) { 
               alert(e.message || "Hata oluştu."); 
           }
@@ -402,13 +386,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
               await banUser(targetUser.id, email);
               alert("Kullanıcı yasaklandı ve atıldı.");
+              fetchUsers();
           } catch(e: any) { 
               console.error(e);
           }
       }
   };
 
-  // --- MUTE ACTION ---
   const handleToggleMute = async () => {
       if (!currentUser.isAdmin) return;
       const newStatus = !isRoomMuted;
@@ -417,8 +401,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       if (confirm(msg)) {
           try {
               await setRoomMuteStatus(currentRoomId, newStatus);
+              fetchRoomStatus();
           } catch (e) {
-              // Hata serviste handle ediliyor
           }
       }
   };
@@ -431,7 +415,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       {/* SOHBET ALANI */}
       <div className="flex-1 flex flex-col min-w-0 relative h-full border-r border-gray-50">
          
-         {/* CHAT HEADER (ROOM TITLE & ACTIONS) */}
          <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-30">
             <div className="flex items-center gap-2">
                 <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">
@@ -440,7 +423,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 {isRoomMuted && <span className="px-2 py-0.5 bg-red-100 text-red-600 text-[10px] rounded-full font-bold">SESSİZ MOD</span>}
             </div>
             
-            {/* Admin Mute Control */}
             {currentUser.isAdmin && !isPrivate && (
                 <button 
                     onClick={handleToggleMute}
@@ -480,7 +462,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
          <div className="bg-white border-t border-gray-100 p-2 sm:p-4 relative z-40">
              <div className="w-full">
-                 {/* Emoji ve Renk Pickerlar (Aynı kod) */}
                  {showEmojiPicker && (
                     <div className="absolute bottom-full left-4 mb-4 bg-white border border-gray-200 shadow-2xl rounded-2xl p-4 z-[999] w-72">
                         <div className="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto">
@@ -597,7 +578,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           </div>
       </div>
 
-      {/* ADMIN/OP CONTEXT MENU */}
       {contextMenu.visible && contextMenu.user && (
           <div 
             style={{ top: contextMenu.y, left: contextMenu.x }}
@@ -607,7 +587,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   <span className="text-xs font-bold text-gray-500">{contextMenu.user.name}</span>
               </div>
               
-              {/* Op Action (Only Super Admin) */}
               {currentUser.isAdmin && (
                   <button 
                     onClick={() => handleOpAction(contextMenu.user!)}
@@ -617,7 +596,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   </button>
               )}
 
-              {/* Kick Action (Admin & Op) */}
               <button 
                  onClick={() => handleKickAction(contextMenu.user!)}
                  className="w-full text-left px-3 py-2 text-xs hover:bg-orange-50 text-orange-600 font-medium flex items-center gap-2"
@@ -625,7 +603,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                  👢 At (Kick)
               </button>
 
-              {/* Ban Action (Admin & Op) */}
               <button 
                  onClick={() => handleBanAction(contextMenu.user!)}
                  className="w-full text-left px-3 py-2 text-xs hover:bg-red-50 text-red-600 font-medium flex items-center gap-2"

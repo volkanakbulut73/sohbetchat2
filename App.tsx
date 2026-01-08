@@ -41,7 +41,7 @@ function App() {
     window.addEventListener('beforeunload', handleBeforeUnload);
 
     // Kendi user kaydımızı dinle
-    const unsubscribe = pb.collection('users').subscribe(user.id, (e) => {
+    pb.collection('users').subscribe(user.id, (e) => {
         if (e.action === 'update' || e.action === 'delete') {
             const record = e.record;
             
@@ -64,11 +64,11 @@ function App() {
                 setUser(prev => prev ? { ...prev, isAdmin: record.isAdmin, isOp: record.isOp } : null);
             }
         }
-    });
+    }).catch(err => console.warn("User presence sub failed", err));
 
     return () => {
         window.removeEventListener('beforeunload', handleBeforeUnload);
-        pb.collection('users').unsubscribe(user.id);
+        pb.collection('users').unsubscribe(user.id).catch(() => {});
     };
   }, [user?.id]); // User ID değişirse yeniden kur
 
@@ -76,7 +76,7 @@ function App() {
   useEffect(() => {
     if (!user) return;
 
-    const unsubscribe = pb.collection('messages').subscribe('*', (e) => {
+    pb.collection('messages').subscribe('*', (e) => {
       if (e.action === 'create') {
         const msg = e.record;
         
@@ -115,10 +115,10 @@ function App() {
           }
         }
       }
-    });
+    }).catch(err => console.warn("Global message sub failed", err));
 
     return () => {
-      pb.collection('messages').unsubscribe('*');
+      pb.collection('messages').unsubscribe('*').catch(() => {});
     };
   }, [user, activeTabId, allowDms, blockedUsers, openTabs]); 
 
