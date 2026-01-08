@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Message } from '../types.ts';
 import { pb, sendMessageToPb, getRoomMessages, getAllUsers, banUser, kickUser, setUserOpStatus, getRoomMuteStatus, setRoomMuteStatus } from '../services/pocketbase.ts';
@@ -131,7 +130,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     return [...prev, newMsg];
                 });
             } else if (e.action === 'update') {
-                // Mesaj güncellendiğinde (Örn: AI cevabı tamamladığında)
+                // Mesaj güncellendiğinde
                 setMessages(prev => prev.map(m => m.id === e.record.id ? {
                     ...m,
                     text: e.record.text,

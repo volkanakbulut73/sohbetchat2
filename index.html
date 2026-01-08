@@ -3,11 +3,21 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover" />
+    
+    <!-- Mobil Web App Ayarları -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0a0a0c">
+
     <title>Workigom Chat | Güvenli Sohbet Platformu</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Tailwind Plugins Eklendi -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio,line-clamp"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
     <script>
       tailwind.config = {
         theme: {
@@ -29,7 +39,6 @@
       }
     </script>
     <style>
-      /* Ensure root and body take full space */
       html, body, #root {
         height: 100%;
         width: 100%;
@@ -39,11 +48,12 @@
 
       body {
         background-color: #0a0a0c;
-        overflow-y: auto !important; /* Allow landing page scrolling */
-        position: relative !important; /* Undo previous fixed position for landing */
+        overflow-y: auto !important;
+        position: relative !important;
+        /* iOS Safari'de elastik kaydırmayı önlemek için */
+        overscroll-behavior-y: none;
       }
 
-      /* Neon Glow Effect */
       .neon-glow {
         text-shadow: 0 0 15px rgba(0, 255, 157, 0.6), 0 0 30px rgba(0, 255, 157, 0.3);
       }
@@ -52,7 +62,6 @@
         box-shadow: 0 0 10px rgba(0, 255, 157, 0.2);
       }
 
-      /* Custom scrollbar */
       ::-webkit-scrollbar {
         width: 6px;
       }
@@ -64,7 +73,6 @@
         border-radius: 10px;
       }
 
-      /* Animations */
       @keyframes pulse-green {
         0%, 100% { opacity: 1; }
         50% { opacity: 0.5; }
@@ -95,5 +103,11 @@
   <body class="bg-workigom-dark text-slate-100 antialiased font-sans">
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
+    
+    <!-- Deploy Hatalarını Önleyici Scriptler -->
+    <script>
+      window.ai = {};
+      window.process = { env: { NODE_ENV: 'production' } };
+    </script>
   </body>
 </html>
