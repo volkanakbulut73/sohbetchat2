@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Message } from '../types.ts';
 import { pb, sendMessageToPb, getRoomMessages, getAllUsers, banUser, kickUser, setUserOpStatus, getRoomMuteStatus, setRoomMuteStatus } from '../services/pocketbase.ts';
@@ -153,9 +154,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
     fetchUsers();
 
-    // Yeni kullanıcılar kayıt olduğunda listeyi güncelle
+    // Yeni kullanıcılar kayıt olduğunda veya güncellendiğinde (online/offline) listeyi güncelle
     const unsubscribe = pb.collection('users').subscribe('*', (e) => {
-      // Bir kullanıcı güncellendiğinde (örn: Op oldu, kick yedi) listeyi yenile
       fetchUsers();
     });
 
@@ -169,26 +169,25 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     return () => window.removeEventListener('click', handleClick);
   }, [contextMenu]);
 
-  // Kullanıcıları Birleştir
+  // Kullanıcıları Birleştir ve FİLTRELE (Online olmayanları çıkar)
   useEffect(() => {
     const uniqueUsers = new Map<string, User>();
     
+    // Özel oda katılımcılarını ekle
     participants.forEach(p => uniqueUsers.set(p.id, p));
     
-    messages.forEach(m => {
-       if (!uniqueUsers.has(m.senderId)) {
-           uniqueUsers.set(m.senderId, {
-               id: m.senderId,
-               name: m.senderName,
-               avatar: m.senderAvatar,
-           });
-       }
-    });
-
+    // Mesajı olanları ekle (Geçmiş mesajlar için isim görünsün diye ama listede aktif olarak sadece online olanlar kalsın istiyoruz)
+    // Ancak kullanıcı listesi (sidebar) sadece AKTİF kullanıcıları göstermeli.
+    // Bu yüzden messages loop'unu kaldırıp sadece humanUsers üzerinden gidiyoruz.
+    
+    // veritabanından gelen tüm kullanıcılar (humanUsers) içinde isOnline=true olanları al
     humanUsers.forEach(u => {
-      uniqueUsers.set(u.id, u);
+      if (u.isOnline) {
+          uniqueUsers.set(u.id, u);
+      }
     });
 
+    // Kendimizi her zaman ekle (Offline görünsek bile UI'da varız)
     uniqueUsers.set(currentUser.id, currentUser);
 
     const sortedUsers = Array.from(uniqueUsers.values()).sort((a, b) => {
@@ -205,7 +204,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     });
 
     setDisplayUsers(sortedUsers);
-  }, [currentUser, participants, humanUsers, messages]);
+  }, [currentUser, participants, humanUsers]); // messages dependency removed to avoid re-render loop on msg
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -561,7 +560,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       <div className="w-20 sm:w-64 bg-white border-l border-gray-100 flex flex-col shrink-0 transition-all duration-300">
           <div className="p-2 sm:p-4 flex-1 overflow-y-auto">
             <h3 className="text-[8px] sm:text-[10px] font-black text-center sm:text-left text-gray-400 uppercase tracking-widest mb-2 sm:mb-4 truncate">
-                Üyeler <span className="hidden sm:inline">({displayUsers.length})</span>
+                Çevrimiçi Üyeler <span className="hidden sm:inline">({displayUsers.length})</span>
             </h3>
             
             {isPrivate && (
@@ -580,7 +579,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                         onDoubleClick={() => onUserDoubleClick?.(u)}
                         onContextMenu={(e) => handleContextMenu(e, u)}
                     >
-                        <img src={u.avatar} className="hidden sm:block w-8 h-8 rounded-full object-cover group-hover:ring-2 ring-blue-100 transition-all" />
+                        <div className="relative">
+                            <img src={u.avatar} className="hidden sm:block w-8 h-8 rounded-full object-cover group-hover:ring-2 ring-blue-100 transition-all" />
+                            <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full hidden sm:block"></div>
+                        </div>
                         
                         <div className="min-w-0 w-full text-center sm:text-left">
                             <p className={`text-[10px] sm:text-sm font-bold truncate flex items-center gap-1 ${u.id === currentUser.id ? 'text-blue-600' : 'text-slate-700'}`}>

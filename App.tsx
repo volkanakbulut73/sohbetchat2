@@ -4,7 +4,7 @@ import JoinScreen from './components/JoinScreen.tsx';
 import ChatInterface from './components/ChatInterface.tsx';
 import { User, ChatRoom, BannedUser } from './types.ts';
 import { ROOMS } from './constants.ts';
-import { pb, signOut, getBanList, unbanUser, resetUserStatus } from './services/pocketbase.ts';
+import { pb, signOut, getBanList, unbanUser, resetUserStatus, setUserOnlineStatus } from './services/pocketbase.ts';
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -22,12 +22,23 @@ function App() {
   const [showBanList, setShowBanList] = useState(false);
   const [bannedUsers, setBannedUsers] = useState<BannedUser[]>([]);
 
-  // 1. GLOBAL GÜVENLİK DİNLEYİCİSİ (KICK / BAN)
+  // 1. GLOBAL GÜVENLİK VE PRESENCE DİNLEYİCİSİ
   useEffect(() => {
     if (!user) return;
 
     // Login olunca statusu temizle (Kicked flag'ini)
     resetUserStatus(user.id);
+    // Sayfa yenilendiğinde online durumunu zorla true yap (Eğer db'de false kaldıysa)
+    setUserOnlineStatus(user.id, true);
+
+    // Sekme kapatılırken offline yap
+    const handleBeforeUnload = () => {
+        // Beacon API veya senkron istek kullanılamadığı için PocketBase SDK'sının
+        // async işlemi tarayıcı kapanırken garantili çalışmayabilir, 
+        // ancak best-effort olarak ekliyoruz.
+        setUserOnlineStatus(user.id, false);
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
 
     // Kendi user kaydımızı dinle
     const unsubscribe = pb.collection('users').subscribe(user.id, (e) => {
@@ -56,6 +67,7 @@ function App() {
     });
 
     return () => {
+        window.removeEventListener('beforeunload', handleBeforeUnload);
         pb.collection('users').unsubscribe(user.id);
     };
   }, [user?.id]); // User ID değişirse yeniden kur
@@ -151,8 +163,8 @@ function App() {
     });
   };
 
-  const handleLogout = () => {
-    signOut();
+  const handleLogout = async () => {
+    await signOut(); // SignOut içinde offline yapma işlemi var
     setUser(null);
     setOpenTabs([]);
     setActiveTabId(null);

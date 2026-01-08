@@ -7,6 +7,7 @@ export interface User {
   isAdmin?: boolean; // Süper Yönetici
   isOp?: boolean;    // Operatör (Kısıtlı yetki)
   email?: string;    // Admin işlemleri için gerekli
+  isOnline?: boolean; // Çevrimiçi durumu
 }
 
 export interface Message {

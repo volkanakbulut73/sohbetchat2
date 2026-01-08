@@ -39,6 +39,37 @@ const checkIfBanned = async (email: string) => {
 }
 
 /**
+ * Kullanıcı Online/Offline Durumunu Ayarla
+ */
+export const setUserOnlineStatus = async (userId: string, isOnline: boolean) => {
+    try {
+        await pb.collection('users').update(userId, { isOnline: isOnline });
+    } catch (error) {
+        console.error("Online durumu güncellenemedi:", error);
+    }
+};
+
+/**
+ * Sistem Mesajı Gönder (Giriş/Çıkış vb.)
+ */
+export const sendSystemNotification = async (user: User, text: string, roomId: string = 'general') => {
+    try {
+        const data = {
+            text: `<span style="color: #10b981; font-weight: bold; font-style: italic;">➔ ${text}</span>`,
+            room: roomId,
+            senderId: user.id,
+            senderName: user.name,
+            senderAvatar: user.avatar,
+            isUser: true, // Mesajı kullanıcı atmış gibi göster ama sistem stili uygula
+            timestamp: new Date().toISOString()
+        };
+        await pb.collection('messages').create(data);
+    } catch (error) {
+        console.error("Bildirim gönderilemedi:", error);
+    }
+};
+
+/**
  * Mevcut kullanıcı ile giriş yap
  */
 export const login = async (email: string, password: string) => {
@@ -49,6 +80,10 @@ export const login = async (email: string, password: string) => {
     }
 
     const authData = await pb.collection('users').authWithPassword(email, password);
+    
+    // Giriş başarılı, online yap
+    await setUserOnlineStatus(authData.record.id, true);
+
     return authData.record;
   } catch (error) {
     console.error("Giriş hatası:", error);
@@ -76,7 +111,8 @@ export const register = async (email: string, password: string, name: string) =>
       name: name,
       isAdmin: false, // Default
       isOp: false,    // Default
-      kicked: false   // Default
+      kicked: false,  // Default
+      isOnline: true  // Kayıt anında online
     };
     
     await pb.collection('users').create(userPayload);
@@ -106,7 +142,8 @@ export const getAllUsers = async () => {
         : `https://api.dicebear.com/7.x/avataaars/svg?seed=${record.id}&backgroundColor=b6e3f4`,
       isAdmin: record.isAdmin,
       isOp: record.isOp,
-      email: record.email // Ban işlemi için gerekli
+      email: record.email, // Ban işlemi için gerekli
+      isOnline: record.isOnline // Çevrimiçi durumu
     }));
   } catch (error) {
     console.error("Kullanıcıları getirme hatası:", error);
@@ -321,6 +358,12 @@ export const resetUserStatus = async (userId: string) => {
     }
 }
 
-export const signOut = () => {
+export const signOut = async () => {
+    // Çıkış yapmadan önce offline yap
+    if (pb.authStore.model?.id) {
+        try {
+            await pb.collection('users').update(pb.authStore.model.id, { isOnline: false });
+        } catch(e) {}
+    }
     pb.authStore.clear();
 };

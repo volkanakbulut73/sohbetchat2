@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { ROOMS } from '../constants.ts';
 import { ChatRoom } from '../types.ts';
-import { login, register } from '../services/pocketbase.ts';
+import { login, register, sendSystemNotification } from '../services/pocketbase.ts';
 
 interface JoinScreenProps {
   onJoin: (user: any, room: ChatRoom) => void;
@@ -42,20 +42,22 @@ const JoinScreen: React.FC<JoinScreenProps> = ({ onJoin }) => {
                 ? userRecord.avatar 
                 : `https://api.dicebear.com/7.x/avataaars/svg?seed=${userRecord.id}&backgroundColor=b6e3f4`;
 
-            // DEĞİŞİKLİK BURADA: isAdmin ve isOp verilerini userRecord'dan alıp state'e ekliyoruz.
             const appUser = {
                 id: userRecord.id,
                 name: userRecord.name || userRecord.username,
                 avatar: avatarUrl,
-                isAdmin: userRecord.isAdmin, // Yetkiyi aktar
-                isOp: userRecord.isOp        // Yetkiyi aktar
+                isAdmin: userRecord.isAdmin,
+                isOp: userRecord.isOp,
+                isOnline: true
             };
             
             // Eğer yönetici girişinden geldiyse ve kullanıcı admin değilse uyar (Opsiyonel UX)
             if (isAdminLogin && !userRecord.isAdmin) {
-                // Sadece görsel uyarı, erişimi kesmiyoruz.
                 console.warn("Yönetici girişinden standart kullanıcı girişi yapıldı.");
             }
+
+            // Sisteme giriş mesajı gönder
+            sendSystemNotification(appUser, "Giriş yaptı", room.id);
 
             onJoin(appUser, room);
         }
