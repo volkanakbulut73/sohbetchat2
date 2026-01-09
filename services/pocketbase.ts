@@ -54,13 +54,17 @@ export const setUserOnlineStatus = async (userId: string, isOnline: boolean) => 
  */
 export const sendSystemNotification = async (user: User, text: string, roomId: string = 'general') => {
     try {
+        // Frontend tarafında özel olarak yakalamak için 'system_msg|' prefixi kullanıyoruz.
+        // Örn: system_msg|Ahmet giriş yaptı..
+        const fullText = `system_msg|${user.name} ${text}..`;
+        
         const data = {
-            text: `<span style="color: #10b981; font-weight: bold; font-style: italic;">➔ ${text}</span>`,
+            text: fullText,
             room: roomId,
             senderId: user.id,
             senderName: user.name,
             senderAvatar: user.avatar,
-            isUser: true, // Mesajı kullanıcı atmış gibi göster ama sistem stili uygula
+            isUser: true, 
             timestamp: new Date().toISOString()
         };
         await pb.collection('messages').create(data);

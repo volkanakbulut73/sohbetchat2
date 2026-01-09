@@ -440,6 +440,20 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
          <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 bg-[#f8f9fa] touch-auto">
             {messages.map((msg, index) => {
+                // SİSTEM MESAJI KONTROLÜ (Giriş yaptı vb.)
+                const isSystemMsg = msg.text.startsWith('system_msg|');
+                if (isSystemMsg) {
+                    const systemText = msg.text.split('system_msg|')[1];
+                    return (
+                        <div key={msg.id} className="w-full flex justify-center my-2">
+                            <span className="text-blue-500 font-bold text-xs tracking-wide font-mono opacity-90 animate-pulse">
+                                {systemText}
+                            </span>
+                        </div>
+                    );
+                }
+
+                // NORMAL MESAJ RENDER
                 const isMe = msg.senderId === currentUser.id;
                 const showHeader = index === 0 || messages[index - 1].senderId !== msg.senderId;
                 return (
