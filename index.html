@@ -10,10 +10,13 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#0a0a0c">
 
+    <!-- Favicon (404 Hatasını Engellemek İçin) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💬</text></svg>">
+
     <title>Workigom Chat | Güvenli Sohbet Platformu</title>
     
-    <!-- Tailwind Plugins Eklendi -->
-    <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio,line-clamp"></script>
+    <!-- Tailwind Plugins (line-clamp kaldırıldı çünkü v3.3+ ile gömülü geliyor) -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -50,7 +53,6 @@
         background-color: #0a0a0c;
         overflow-y: auto !important;
         position: relative !important;
-        /* iOS Safari'de elastik kaydırmayı önlemek için */
         overscroll-behavior-y: none;
       }
 
@@ -103,10 +105,7 @@
   <body class="bg-workigom-dark text-slate-100 antialiased font-sans">
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
-    
-    <!-- Deploy Hatalarını Önleyici Scriptler -->
     <script>
-      // window.ai yapılandırması kaldırıldı.
       window.process = { env: { NODE_ENV: 'production' } };
     </script>
   </body>
