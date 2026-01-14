@@ -1,40 +1,61 @@
 
-export interface User {
+
+export enum Role {
+  SYSTEM = 'system',
+  USER = 'user',
+  ASSISTANT = 'assistant'
+}
+
+export interface BaseRecord {
   id: string;
+  created: string;
+  updated: string;
+  collectionId: string;
+  collectionName: string;
+}
+
+export interface Message extends BaseRecord {
+  role: Role;
+  content: string;
+  room_id: string;
+  user_id: string; // Relation to users
+  color?: string;
+  expand?: {
+    user_id?: User;
+  };
+  // UI helper props
+  timestamp?: number; 
+}
+
+export interface User extends BaseRecord {
+  username: string;
+  email: string;
   name: string;
-  avatar: string;
-  role?: string; 
-  isAdmin?: boolean; // Süper Yönetici
-  isOp?: boolean;    // Operatör (Kısıtlı yetki)
-  email?: string;    // Admin işlemleri için gerekli
-  isOnline?: boolean; // Çevrimiçi durumu
+  avatar?: string;
+  status?: string;
+  isOnline?: boolean;
+  isBot?: boolean;
+  color?: string;
 }
 
-export interface Message {
-  id: string;
-  senderId: string;
-  senderName: string;
-  senderAvatar: string;
-  text: string;
-  timestamp: Date;
-  isUser: boolean;
-  image?: string; // Base64 image string
-  audio?: string; // Base64 audio string
-}
-
-export interface ChatRoom {
-  id: string;
+export interface Room extends BaseRecord {
   name: string;
   topic: string;
-  participants: User[];
-  description: string;
-  isPrivate?: boolean;
+  active: boolean; // UI state mostly
+  type: 'public' | 'private';
+  participants: string[]; // Array of User IDs
+  otherUserId?: string; // Helper for private rooms
 }
 
-// Banned User Structure
-export interface BannedUser {
-  id: string;
-  email: string; // Banlanan email veya ID
-  reason?: string;
-  created: string;
+export interface RoomState extends BaseRecord {
+  room_id: string;
+  is_muted: boolean;
+  ai_typing: boolean;
+  ai_user_id: string;
+}
+
+export interface BannedUser extends BaseRecord {
+  user_id: string; // The person who is blocking
+  target_user_id: string; // The person being blocked
+  room_id?: string; // Optional: block only in specific room?
 }
